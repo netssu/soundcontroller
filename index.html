@@ -1,0 +1,2532 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="referrer" content="strict-origin-when-cross-origin">
+  <title>Mesa Sonora RPG</title>
+  <meta name="description" content="Player de campanhas de RPG com playlists, YouTube, MP3, fade e tempos salvos no navegador.">
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #f4f5f2;
+      --ink: #1f2328;
+      --muted: #68717b;
+      --panel: #ffffff;
+      --panel-2: #ecefed;
+      --line: #d7ddd9;
+      --rail: #202427;
+      --rail-soft: #2d3236;
+      --rail-ink: #f3f5f2;
+      --teal: #237c74;
+      --teal-2: #d8efec;
+      --red: #8f3546;
+      --gold: #bb8732;
+      --focus: #4f9d90;
+      --shadow: 0 18px 45px rgba(20, 24, 28, 0.12);
+      --radius: 8px;
+    }
+
+    * {
+      box-sizing: border-box;
+      letter-spacing: 0;
+    }
+
+    html,
+    body {
+      min-height: 100%;
+    }
+
+    body {
+      margin: 0;
+      background:
+        linear-gradient(120deg, rgba(35, 124, 116, 0.08), transparent 30%),
+        linear-gradient(240deg, rgba(143, 53, 70, 0.08), transparent 34%),
+        var(--bg);
+      color: var(--ink);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      font-size: 15px;
+      line-height: 1.45;
+    }
+
+    button,
+    input,
+    textarea,
+    select {
+      font: inherit;
+    }
+
+    button {
+      border: 0;
+      cursor: pointer;
+    }
+
+    button:disabled {
+      cursor: not-allowed;
+      opacity: 0.55;
+    }
+
+    input,
+    textarea,
+    select {
+      width: 100%;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: #fff;
+      color: var(--ink);
+      min-height: 42px;
+      padding: 10px 12px;
+      outline: none;
+    }
+
+    input:focus,
+    textarea:focus,
+    select:focus,
+    button:focus-visible {
+      outline: 3px solid rgba(79, 157, 144, 0.35);
+      outline-offset: 2px;
+    }
+
+    textarea {
+      min-height: 168px;
+      resize: vertical;
+      font-family: "Cascadia Code", "SFMono-Regular", Consolas, monospace;
+      font-size: 13px;
+      line-height: 1.45;
+    }
+
+    .app {
+      display: grid;
+      grid-template-columns: 292px minmax(0, 1fr) 360px;
+      min-height: 100vh;
+    }
+
+    .sidebar {
+      background: var(--rail);
+      color: var(--rail-ink);
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 18px;
+      min-width: 0;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      min-height: 44px;
+    }
+
+    .brand-mark {
+      width: 42px;
+      height: 42px;
+      border-radius: var(--radius);
+      background: linear-gradient(145deg, var(--teal), var(--red));
+      display: grid;
+      place-items: center;
+      flex: 0 0 auto;
+      box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.18);
+    }
+
+    .brand h1 {
+      margin: 0;
+      font-size: 20px;
+      line-height: 1.1;
+      font-weight: 800;
+    }
+
+    .brand span {
+      display: block;
+      margin-top: 2px;
+      color: #c5ccc7;
+      font-size: 12px;
+      font-weight: 600;
+    }
+
+    .playlist-create {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 44px;
+      gap: 8px;
+    }
+
+    .playlist-create input {
+      border-color: rgba(255, 255, 255, 0.16);
+      background: var(--rail-soft);
+      color: var(--rail-ink);
+    }
+
+    .playlist-create input::placeholder {
+      color: #aeb8b1;
+    }
+
+    .icon-button,
+    .text-button {
+      min-height: 42px;
+      border-radius: var(--radius);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      color: var(--ink);
+      background: var(--panel-2);
+      padding: 0 12px;
+      font-weight: 750;
+      white-space: nowrap;
+    }
+
+    .icon-button {
+      width: 42px;
+      padding: 0;
+      flex: 0 0 auto;
+    }
+
+    .primary {
+      background: var(--teal);
+      color: #fff;
+    }
+
+    .danger {
+      background: rgba(143, 53, 70, 0.12);
+      color: var(--red);
+    }
+
+    .ghost {
+      background: transparent;
+      color: inherit;
+      border: 1px solid currentColor;
+    }
+
+    .button-row {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+
+    .playlist-list {
+      display: grid;
+      gap: 8px;
+      overflow: auto;
+      padding-right: 2px;
+    }
+
+    .playlist-item {
+      min-height: 58px;
+      border-radius: var(--radius);
+      border: 1px solid rgba(255, 255, 255, 0.09);
+      background: rgba(255, 255, 255, 0.045);
+      color: var(--rail-ink);
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 8px;
+      align-items: center;
+      padding: 10px;
+      text-align: left;
+    }
+
+    .playlist-item.is-active {
+      background: var(--teal-2);
+      color: #183b38;
+      border-color: transparent;
+    }
+
+    .playlist-name,
+    .track-title,
+    .sfx-title,
+    .current-title {
+      overflow-wrap: anywhere;
+      word-break: break-word;
+    }
+
+    .playlist-name {
+      font-weight: 800;
+    }
+
+    .playlist-count {
+      color: currentColor;
+      opacity: 0.72;
+      font-size: 12px;
+      margin-top: 2px;
+    }
+
+    .mini-actions {
+      display: flex;
+      gap: 4px;
+    }
+
+    .mini-actions .icon-button {
+      width: 34px;
+      min-height: 34px;
+      background: rgba(255, 255, 255, 0.12);
+      color: currentColor;
+    }
+
+    .main {
+      min-width: 0;
+      padding: 22px;
+      display: flex;
+      flex-direction: column;
+      gap: 18px;
+    }
+
+    .topbar {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 16px;
+      align-items: end;
+    }
+
+    .page-title {
+      min-width: 0;
+    }
+
+    .eyebrow {
+      margin: 0 0 4px;
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 800;
+      text-transform: uppercase;
+    }
+
+    .page-title h2 {
+      margin: 0;
+      font-size: 28px;
+      line-height: 1.12;
+    }
+
+    .stats {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+    }
+
+    .stat {
+      min-height: 38px;
+      border-radius: var(--radius);
+      border: 1px solid var(--line);
+      background: rgba(255, 255, 255, 0.72);
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 10px;
+      color: var(--muted);
+      font-weight: 750;
+      white-space: nowrap;
+    }
+
+    .add-track {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      padding: 14px;
+      display: grid;
+      grid-template-columns: minmax(130px, 1fr) minmax(220px, 1.6fr) minmax(150px, 0.85fr) auto;
+      gap: 10px;
+      align-items: center;
+    }
+
+    .track-list {
+      display: grid;
+      gap: 10px;
+      min-width: 0;
+    }
+
+    .track-card {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      display: grid;
+      grid-template-columns: 46px minmax(0, 1fr) auto;
+      gap: 12px;
+      align-items: center;
+      padding: 12px;
+      min-height: 112px;
+    }
+
+    .track-card.is-playing {
+      border-color: rgba(35, 124, 116, 0.62);
+      box-shadow: 0 0 0 3px rgba(35, 124, 116, 0.11);
+    }
+
+    .play-button {
+      width: 46px;
+      min-height: 46px;
+      border-radius: 50%;
+      background: var(--teal);
+      color: #fff;
+      display: grid;
+      place-items: center;
+      flex: 0 0 auto;
+    }
+
+    .track-meta {
+      min-width: 0;
+    }
+
+    .track-title {
+      font-weight: 850;
+      font-size: 16px;
+      margin: 0 0 4px;
+    }
+
+    .track-url {
+      color: var(--muted);
+      font-size: 12px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      max-width: 100%;
+    }
+
+    .time-box {
+      display: grid;
+      gap: 7px;
+      min-width: 0;
+    }
+
+    .track-controls {
+      grid-column: 2 / -1;
+      display: grid;
+      grid-template-columns: minmax(190px, 1.35fr) minmax(128px, 0.72fr) auto;
+      gap: 10px;
+      align-items: center;
+      min-width: 0;
+    }
+
+    .control-cell {
+      min-width: 0;
+      display: grid;
+      gap: 4px;
+    }
+
+    .control-cell label {
+      font-size: 11px;
+      color: var(--muted);
+      font-weight: 850;
+      text-transform: uppercase;
+      white-space: nowrap;
+    }
+
+    .range-row {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 8px;
+      align-items: center;
+      min-width: 0;
+    }
+
+    .range-value {
+      color: var(--muted);
+      font-family: "Cascadia Code", "SFMono-Regular", Consolas, monospace;
+      font-size: 12px;
+      min-width: 48px;
+      text-align: right;
+      white-space: nowrap;
+    }
+
+    .loop-pill {
+      min-height: 36px;
+      border-radius: var(--radius);
+      background: var(--panel-2);
+      color: var(--ink);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding: 0 10px;
+      font-size: 12px;
+      font-weight: 850;
+      text-transform: uppercase;
+      white-space: nowrap;
+    }
+
+    .loop-pill input {
+      width: 16px;
+      min-height: 16px;
+      padding: 0;
+      accent-color: var(--teal);
+    }
+
+    .time-text {
+      font-family: "Cascadia Code", "SFMono-Regular", Consolas, monospace;
+      color: var(--muted);
+      font-size: 13px;
+      white-space: nowrap;
+    }
+
+    .progress {
+      height: 8px;
+      border-radius: 999px;
+      background: #dfe4e1;
+      overflow: hidden;
+    }
+
+    .progress > span {
+      display: block;
+      height: 100%;
+      width: 0;
+      background: linear-gradient(90deg, var(--teal), var(--gold));
+      border-radius: inherit;
+    }
+
+    .empty-state {
+      border: 1px dashed #b8c2bd;
+      border-radius: var(--radius);
+      min-height: 172px;
+      display: grid;
+      place-items: center;
+      text-align: center;
+      color: var(--muted);
+      background: rgba(255, 255, 255, 0.55);
+      padding: 20px;
+      font-weight: 700;
+    }
+
+    .right-panel {
+      min-width: 0;
+      border-left: 1px solid var(--line);
+      background: rgba(255, 255, 255, 0.55);
+      padding: 22px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      overflow: auto;
+    }
+
+    .tool-panel {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      padding: 14px;
+      display: grid;
+      gap: 12px;
+    }
+
+    .tool-panel h3 {
+      margin: 0;
+      font-size: 15px;
+      line-height: 1.2;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .current-box {
+      display: grid;
+      gap: 10px;
+    }
+
+    .current-title {
+      font-size: 19px;
+      font-weight: 900;
+      margin: 0;
+    }
+
+    .current-subtitle {
+      color: var(--muted);
+      margin: 0;
+      font-size: 13px;
+      overflow-wrap: anywhere;
+    }
+
+    .meter {
+      display: grid;
+      gap: 8px;
+    }
+
+    .meter label,
+    .field-label {
+      font-size: 12px;
+      font-weight: 800;
+      color: var(--muted);
+      text-transform: uppercase;
+    }
+
+    input[type="range"] {
+      padding: 0;
+      min-height: 28px;
+      accent-color: var(--teal);
+      border: 0;
+    }
+
+    .youtube-shell {
+      aspect-ratio: 16 / 9;
+      background: #151718;
+      border-radius: var(--radius);
+      overflow: hidden;
+      display: none;
+    }
+
+    .youtube-shell.is-visible {
+      display: block;
+    }
+
+    #youtube-player,
+    #youtube-player iframe {
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
+
+    .audio-shell {
+      border-radius: var(--radius);
+      border: 1px solid var(--line);
+      background:
+        repeating-linear-gradient(90deg, rgba(35, 124, 116, 0.18), rgba(35, 124, 116, 0.18) 4px, transparent 4px, transparent 12px),
+        linear-gradient(135deg, #ffffff, #edf4f2);
+      min-height: 86px;
+      display: grid;
+      place-items: center;
+      color: var(--teal);
+    }
+
+    .audio-shell.is-hidden {
+      display: none;
+    }
+
+    .player-alert {
+      border: 1px solid rgba(187, 135, 50, 0.42);
+      border-radius: var(--radius);
+      background: #fff7e8;
+      color: #694916;
+      padding: 10px 12px;
+      font-size: 13px;
+      font-weight: 750;
+      overflow-wrap: anywhere;
+    }
+
+    .mini-player-pool {
+      width: 1px;
+      height: 1px;
+      overflow: hidden;
+      position: fixed;
+      left: -10px;
+      top: -10px;
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    .export-list {
+      display: grid;
+      gap: 8px;
+      max-height: 152px;
+      overflow: auto;
+      padding-right: 2px;
+    }
+
+    .check-row {
+      min-height: 36px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      display: grid;
+      grid-template-columns: 22px minmax(0, 1fr);
+      gap: 8px;
+      align-items: center;
+      padding: 7px 9px;
+      background: #fff;
+      color: var(--ink);
+      font-weight: 750;
+    }
+
+    .check-row input {
+      width: 16px;
+      min-height: 16px;
+      accent-color: var(--teal);
+    }
+
+    .check-row span {
+      overflow-wrap: anywhere;
+    }
+
+    .toast {
+      position: fixed;
+      left: 50%;
+      bottom: 18px;
+      transform: translateX(-50%);
+      min-height: 42px;
+      max-width: min(520px, calc(100vw - 24px));
+      padding: 10px 14px;
+      border-radius: var(--radius);
+      background: #1f2328;
+      color: #fff;
+      box-shadow: var(--shadow);
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 160ms ease, transform 160ms ease;
+      font-weight: 750;
+      z-index: 20;
+    }
+
+    .toast.is-visible {
+      opacity: 1;
+      transform: translateX(-50%) translateY(-4px);
+    }
+
+    .sfx-dock {
+      position: fixed;
+      right: 18px;
+      bottom: 18px;
+      z-index: 15;
+      width: min(420px, calc(100vw - 36px));
+      max-height: min(78vh, 720px);
+      border: 1px solid rgba(31, 35, 40, 0.14);
+      border-radius: var(--radius);
+      background: rgba(255, 255, 255, 0.96);
+      box-shadow: var(--shadow);
+      display: grid;
+      grid-template-rows: auto auto minmax(0, 1fr);
+      overflow: hidden;
+      backdrop-filter: blur(14px);
+    }
+
+    .sfx-dock.is-dragging {
+      cursor: grabbing;
+      transition: none;
+    }
+
+    .sfx-header {
+      min-height: 46px;
+      padding: 10px 12px;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 10px;
+      align-items: center;
+      border-bottom: 1px solid var(--line);
+      background: #fbfcfb;
+      cursor: grab;
+      touch-action: none;
+      user-select: none;
+    }
+
+    .sfx-header h3 {
+      margin: 0;
+      font-size: 15px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      min-width: 0;
+    }
+
+    .sfx-header .icon-button {
+      cursor: pointer;
+    }
+
+    .sfx-form {
+      display: grid;
+      grid-template-columns: minmax(84px, 0.9fr) minmax(112px, 1.2fr) 42px;
+      gap: 8px;
+      padding: 10px;
+      border-bottom: 1px solid var(--line);
+      background: #fff;
+    }
+
+    .sfx-form input {
+      min-height: 38px;
+      padding: 8px 10px;
+    }
+
+    .sfx-list {
+      display: grid;
+      gap: 8px;
+      padding: 10px;
+      overflow: auto;
+      min-height: 90px;
+      max-height: 460px;
+    }
+
+    .sfx-card {
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: #fff;
+      padding: 9px;
+      display: grid;
+      grid-template-columns: 38px minmax(0, 1fr) auto;
+      gap: 9px;
+      align-items: center;
+    }
+
+    .sfx-card.is-playing {
+      border-color: rgba(187, 135, 50, 0.75);
+      box-shadow: 0 0 0 3px rgba(187, 135, 50, 0.13);
+    }
+
+    .sfx-play {
+      width: 38px;
+      min-height: 38px;
+      border-radius: 50%;
+      background: var(--gold);
+      color: #fff;
+      display: grid;
+      place-items: center;
+    }
+
+    .sfx-title {
+      margin: 0 0 2px;
+      font-weight: 850;
+      font-size: 14px;
+    }
+
+    .sfx-url {
+      color: var(--muted);
+      font-size: 11px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .sfx-controls {
+      grid-column: 2 / -1;
+      display: grid;
+      grid-template-columns: minmax(140px, 1fr) minmax(90px, 0.7fr) auto;
+      gap: 8px;
+      align-items: center;
+      min-width: 0;
+    }
+
+    .sfx-card .loop-pill {
+      min-height: 32px;
+      padding: 0 8px;
+      font-size: 11px;
+    }
+
+    .hidden {
+      display: none !important;
+    }
+
+    svg {
+      width: 18px;
+      height: 18px;
+      stroke-width: 2.25;
+      flex: 0 0 auto;
+    }
+
+    @media (max-width: 1180px) {
+      .app {
+        grid-template-columns: 256px minmax(0, 1fr);
+      }
+
+      .right-panel {
+        grid-column: 1 / -1;
+        border-left: 0;
+        border-top: 1px solid var(--line);
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        align-items: start;
+      }
+    }
+
+    @media (max-width: 820px) {
+      .app {
+        display: block;
+      }
+
+      .sidebar,
+      .main,
+      .right-panel {
+        padding: 16px;
+      }
+
+      .playlist-list {
+        grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+        max-height: none;
+      }
+
+      .topbar,
+      .add-track,
+      .track-card,
+      .track-controls,
+      .sfx-form,
+      .sfx-card,
+      .sfx-controls,
+      .right-panel {
+        grid-template-columns: 1fr;
+      }
+
+      .stats {
+        justify-content: flex-start;
+      }
+
+      .track-card {
+        gap: 10px;
+      }
+
+      .track-card .mini-actions {
+        justify-content: flex-start;
+      }
+
+      .time-box {
+        max-width: 260px;
+      }
+
+      .track-controls,
+      .sfx-controls {
+        grid-column: 1 / -1;
+      }
+
+      .sfx-dock {
+        right: 10px;
+        bottom: 10px;
+        width: calc(100vw - 20px);
+        max-height: 64vh;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="brand-mark" aria-hidden="true"><i data-lucide="music-4"></i></div>
+        <div>
+          <h1>Mesa Sonora</h1>
+          <span>campanhas de RPG</span>
+        </div>
+      </div>
+
+      <form class="playlist-create" id="playlist-form">
+        <input id="playlist-name" type="text" maxlength="72" placeholder="Nova playlist" aria-label="Nome da nova playlist">
+        <button class="icon-button primary" type="submit" title="Criar playlist" aria-label="Criar playlist">
+          <i data-lucide="plus"></i>
+        </button>
+      </form>
+
+      <nav class="playlist-list" id="playlist-list" aria-label="Playlists"></nav>
+    </aside>
+
+    <main class="main">
+      <header class="topbar">
+        <div class="page-title">
+          <p class="eyebrow">Playlist ativa</p>
+          <h2 id="active-playlist-title">Mesa</h2>
+        </div>
+        <div class="stats">
+          <div class="stat"><i data-lucide="list-music"></i><span id="stat-playlists">0 playlists</span></div>
+          <div class="stat"><i data-lucide="audio-lines"></i><span id="stat-tracks">0 músicas</span></div>
+        </div>
+      </header>
+
+      <form class="add-track" id="track-form">
+        <input id="track-title" type="text" maxlength="96" placeholder="Título customizado" aria-label="Título customizado">
+        <input id="track-url" type="url" placeholder="YouTube ou link .mp3" aria-label="Link do YouTube ou MP3" required>
+        <select id="track-playlist" aria-label="Playlist da música"></select>
+        <button class="text-button primary" type="submit">
+          <i data-lucide="plus"></i>
+          Adicionar
+        </button>
+      </form>
+
+      <section class="track-list" id="track-list" aria-label="Músicas"></section>
+    </main>
+
+    <aside class="right-panel">
+      <section class="tool-panel current-box">
+        <h3><i data-lucide="radio"></i> Tocando agora</h3>
+        <div class="youtube-shell" id="youtube-shell">
+          <div id="youtube-player"></div>
+        </div>
+        <div class="audio-shell" id="audio-shell" aria-hidden="true">
+          <i data-lucide="audio-waveform"></i>
+        </div>
+        <div class="player-alert hidden" id="youtube-notice"></div>
+        <p class="current-title" id="current-title">Nada tocando</p>
+        <p class="current-subtitle" id="current-subtitle">Selecione uma música.</p>
+        <div class="progress" aria-hidden="true"><span id="current-progress"></span></div>
+        <div class="time-text" id="current-time">00:00</div>
+        <div class="button-row">
+          <button class="text-button" id="pause-button" type="button">
+            <i data-lucide="pause"></i>
+            Pausar
+          </button>
+          <button class="text-button danger" id="stop-button" type="button">
+            <i data-lucide="square"></i>
+            Parar
+          </button>
+        </div>
+      </section>
+
+      <section class="tool-panel">
+        <h3><i data-lucide="sliders-horizontal"></i> Mixer</h3>
+        <div class="meter">
+          <label for="master-volume">Volume <span id="volume-value">82%</span></label>
+          <input id="master-volume" type="range" min="0" max="100" step="1">
+        </div>
+        <div class="meter">
+          <label for="fade-duration">Fade <span id="fade-value">1.8s</span></label>
+          <input id="fade-duration" type="range" min="0" max="6000" step="100">
+        </div>
+      </section>
+
+      <section class="tool-panel">
+        <h3><i data-lucide="file-down"></i> Exportar</h3>
+        <div class="export-list" id="export-list"></div>
+        <div class="button-row">
+          <button class="text-button primary" id="export-button" type="button">
+            <i data-lucide="file-text"></i>
+            Gerar texto
+          </button>
+          <button class="icon-button" id="copy-button" type="button" title="Copiar texto" aria-label="Copiar texto">
+            <i data-lucide="copy"></i>
+          </button>
+          <button class="icon-button" id="download-button" type="button" title="Baixar texto" aria-label="Baixar texto">
+            <i data-lucide="download"></i>
+          </button>
+        </div>
+        <textarea id="export-output" spellcheck="false" aria-label="Texto exportado"></textarea>
+      </section>
+
+      <section class="tool-panel">
+        <h3><i data-lucide="file-up"></i> Importar</h3>
+        <textarea id="import-input" spellcheck="false" aria-label="Texto para importar" placeholder='{titulo="Chuva na estrada", link="https://youtube.com/watch?v=...", playlist="Viagem"}'></textarea>
+        <button class="text-button primary" id="import-button" type="button">
+          <i data-lucide="upload"></i>
+          Importar texto
+        </button>
+      </section>
+    </aside>
+  </div>
+
+  <section class="sfx-dock" id="sfx-dock" aria-label="Efeitos sonoros">
+    <div class="sfx-header" id="sfx-drag-handle" title="Segure e arraste para mover">
+      <h3><i data-lucide="sparkles"></i> Efeitos sonoros <span id="sfx-count">0</span></h3>
+      <button class="icon-button danger" id="sfx-stop-all" type="button" title="Parar efeitos" aria-label="Parar todos os efeitos sonoros">
+        <i data-lucide="square"></i>
+      </button>
+    </div>
+    <form class="sfx-form" id="sfx-form">
+      <input id="sfx-title" type="text" maxlength="72" placeholder="Título" aria-label="Título do efeito">
+      <input id="sfx-url" type="url" placeholder="YouTube ou .mp3" aria-label="Link do efeito sonoro" required>
+      <button class="icon-button primary" type="submit" title="Adicionar efeito" aria-label="Adicionar efeito sonoro">
+        <i data-lucide="plus"></i>
+      </button>
+    </form>
+    <div class="sfx-list" id="sfx-list"></div>
+  </section>
+
+  <div class="mini-player-pool" id="sfx-youtube-pool" aria-hidden="true"></div>
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+  <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+  <script>
+    const STORAGE_KEY = "mesa-sonora-rpg:v1";
+    const SAVE_INTERVAL_MS = 1200;
+
+    const dom = {
+      playlistForm: document.querySelector("#playlist-form"),
+      playlistName: document.querySelector("#playlist-name"),
+      playlistList: document.querySelector("#playlist-list"),
+      activePlaylistTitle: document.querySelector("#active-playlist-title"),
+      statPlaylists: document.querySelector("#stat-playlists"),
+      statTracks: document.querySelector("#stat-tracks"),
+      trackForm: document.querySelector("#track-form"),
+      trackTitle: document.querySelector("#track-title"),
+      trackUrl: document.querySelector("#track-url"),
+      trackPlaylist: document.querySelector("#track-playlist"),
+      trackList: document.querySelector("#track-list"),
+      youtubeShell: document.querySelector("#youtube-shell"),
+      youtubeNotice: document.querySelector("#youtube-notice"),
+      audioShell: document.querySelector("#audio-shell"),
+      currentTitle: document.querySelector("#current-title"),
+      currentSubtitle: document.querySelector("#current-subtitle"),
+      currentProgress: document.querySelector("#current-progress"),
+      currentTime: document.querySelector("#current-time"),
+      pauseButton: document.querySelector("#pause-button"),
+      stopButton: document.querySelector("#stop-button"),
+      masterVolume: document.querySelector("#master-volume"),
+      fadeDuration: document.querySelector("#fade-duration"),
+      volumeValue: document.querySelector("#volume-value"),
+      fadeValue: document.querySelector("#fade-value"),
+      exportList: document.querySelector("#export-list"),
+      exportButton: document.querySelector("#export-button"),
+      copyButton: document.querySelector("#copy-button"),
+      downloadButton: document.querySelector("#download-button"),
+      exportOutput: document.querySelector("#export-output"),
+      importInput: document.querySelector("#import-input"),
+      importButton: document.querySelector("#import-button"),
+      sfxForm: document.querySelector("#sfx-form"),
+      sfxDock: document.querySelector("#sfx-dock"),
+      sfxDragHandle: document.querySelector("#sfx-drag-handle"),
+      sfxTitle: document.querySelector("#sfx-title"),
+      sfxUrl: document.querySelector("#sfx-url"),
+      sfxList: document.querySelector("#sfx-list"),
+      sfxCount: document.querySelector("#sfx-count"),
+      sfxStopAll: document.querySelector("#sfx-stop-all"),
+      sfxYoutubePool: document.querySelector("#sfx-youtube-pool"),
+      toast: document.querySelector("#toast")
+    };
+
+    const audio = new Audio();
+    audio.preload = "auto";
+    const isFilePage = window.location.protocol === "file:";
+    const youtubeLocalMessage = "YouTube não toca quando o HTML é aberto direto como arquivo. Abra por GitHub Pages ou por http://localhost; links diretos .mp3 continuam funcionando.";
+
+    let state = loadState();
+    let current = { trackId: null, type: null, playing: false };
+    let ytPlayer = null;
+    let ytReady = false;
+    let ytWaiters = [];
+    let switchToken = 0;
+    let saveTimer = null;
+    let toastTimer = null;
+    let sfxDockDrag = null;
+    const sfxPlayers = new Map();
+
+    window.onYouTubeIframeAPIReady = () => {
+      ytPlayer = new YT.Player("youtube-player", {
+        host: "https://www.youtube.com",
+        width: "100%",
+        height: "100%",
+        playerVars: getYoutubePlayerVars({
+          controls: 1,
+          disablekb: 0
+        }),
+        events: {
+          onReady: (event) => {
+            ytReady = true;
+            patchYoutubeIframe(event.target);
+            ytWaiters.splice(0).forEach((resolve) => resolve());
+          },
+          onStateChange: (event) => {
+            if (event.data === YT.PlayerState.ENDED && current.type === "youtube") {
+              const track = findTrack(current.trackId);
+              if (track?.loop) {
+                track.time = 0;
+                ytPlayer.seekTo(0, true);
+                ytPlayer.playVideo();
+              } else {
+                handleTrackEnded();
+              }
+            }
+          },
+          onError: (event) => handleYoutubeError(event.data, findTrack(current.trackId)?.title || "YouTube")
+        }
+      });
+    };
+
+    const ytScript = document.createElement("script");
+    ytScript.src = "https://www.youtube.com/iframe_api";
+    document.head.appendChild(ytScript);
+
+    dom.playlistForm.addEventListener("submit", (event) => {
+      event.preventDefault();
+      const name = dom.playlistName.value.trim();
+      if (!name) return;
+      const playlist = { id: uid(), name, tracks: [] };
+      state.playlists.push(playlist);
+      state.selectedPlaylistId = playlist.id;
+      dom.playlistName.value = "";
+      saveState();
+      render();
+      toast("Playlist criada.");
+    });
+
+    dom.trackForm.addEventListener("submit", (event) => {
+      event.preventDefault();
+      const url = dom.trackUrl.value.trim();
+      if (!url) return;
+      const playlist = getPlaylist(dom.trackPlaylist.value) || getSelectedPlaylist();
+      const media = getMediaInfo(url);
+      if (media.type === "youtube" && !media.videoId) {
+        toast("Link do YouTube inválido.");
+        return;
+      }
+      const title = dom.trackTitle.value.trim() || guessTitle(url);
+      playlist.tracks.push({
+        id: uid(),
+        title,
+        url,
+        type: media.type,
+        videoId: media.videoId || "",
+        time: 0,
+        duration: 0,
+        volume: 100,
+        loop: false,
+        createdAt: Date.now()
+      });
+      state.selectedPlaylistId = playlist.id;
+      dom.trackTitle.value = "";
+      dom.trackUrl.value = "";
+      saveState();
+      render();
+      toast("Música adicionada.");
+    });
+
+    dom.playlistList.addEventListener("click", (event) => {
+      const button = event.target.closest("button[data-action]");
+      if (!button) return;
+      const action = button.dataset.action;
+      const id = button.dataset.id;
+      const playlist = getPlaylist(id);
+      if (!playlist) return;
+
+      if (action === "select-playlist") {
+        state.selectedPlaylistId = id;
+        saveState();
+        render();
+      }
+
+      if (action === "rename-playlist") {
+        const next = prompt("Nome da playlist", playlist.name);
+        if (next && next.trim()) {
+          playlist.name = next.trim().slice(0, 72);
+          saveState();
+          render();
+        }
+      }
+
+      if (action === "delete-playlist") {
+        if (state.playlists.length === 1) {
+          toast("Mantenha pelo menos uma playlist.");
+          return;
+        }
+        if (!confirm(`Excluir "${playlist.name}"?`)) return;
+        const ids = new Set(playlist.tracks.map((track) => track.id));
+        if (current.trackId && ids.has(current.trackId)) {
+          stopActive();
+        }
+        state.playlists = state.playlists.filter((item) => item.id !== id);
+        if (state.selectedPlaylistId === id) {
+          state.selectedPlaylistId = state.playlists[0].id;
+        }
+        saveState();
+        render();
+      }
+    });
+
+    dom.trackList.addEventListener("click", async (event) => {
+      const button = event.target.closest("button[data-action]");
+      if (!button) return;
+      const action = button.dataset.action;
+      const track = findTrack(button.dataset.id);
+      if (!track) return;
+
+      if (action === "play-track") {
+        await playTrack(track.id);
+      }
+
+      if (action === "rename-track") {
+        const next = prompt("Título da música", track.title);
+        if (next && next.trim()) {
+          track.title = next.trim().slice(0, 96);
+          saveState();
+          render();
+        }
+      }
+
+      if (action === "reset-time") {
+        track.time = 0;
+        if (current.trackId === track.id) {
+          seekActive(0);
+        }
+        saveState();
+        render();
+      }
+
+      if (action === "delete-track") {
+        if (!confirm(`Remover "${track.title}"?`)) return;
+        if (current.trackId === track.id) {
+          stopActive();
+        }
+        for (const playlist of state.playlists) {
+          playlist.tracks = playlist.tracks.filter((item) => item.id !== track.id);
+        }
+        saveState();
+        render();
+      }
+    });
+
+    dom.trackList.addEventListener("input", (event) => {
+      const input = event.target;
+      const track = findTrack(input.dataset.id);
+      if (!track) return;
+
+      if (input.dataset.action === "seek-track") {
+        const seconds = Number(input.value);
+        track.time = seconds;
+        if (current.trackId === track.id) {
+          seekActive(seconds);
+        }
+        syncTimeViews();
+        queueSave();
+      }
+
+      if (input.dataset.action === "volume-track") {
+        track.volume = Number(input.value);
+        if (current.trackId === track.id && current.playing) {
+          setActiveVolume(getTrackOutputVolume(track));
+        }
+        syncVolumeViews(track);
+        queueSave();
+      }
+    });
+
+    dom.trackList.addEventListener("change", (event) => {
+      const input = event.target;
+      if (input.dataset.action !== "loop-track") return;
+      const track = findTrack(input.dataset.id);
+      if (!track) return;
+      track.loop = input.checked;
+      if (current.trackId === track.id && current.type === "audio") {
+        audio.loop = track.loop;
+      }
+      queueSave();
+    });
+
+    dom.pauseButton.addEventListener("click", () => pauseActive(true));
+    dom.stopButton.addEventListener("click", () => stopActive());
+
+    dom.sfxForm.addEventListener("submit", (event) => {
+      event.preventDefault();
+      const url = dom.sfxUrl.value.trim();
+      if (!url) return;
+      const media = getMediaInfo(url);
+      if (media.type === "youtube" && !media.videoId) {
+        toast("Link do YouTube inválido.");
+        return;
+      }
+      state.sfx.push({
+        id: uid(),
+        title: (dom.sfxTitle.value.trim() || guessTitle(url)).slice(0, 72),
+        url,
+        type: media.type,
+        videoId: media.videoId || "",
+        time: 0,
+        duration: 0,
+        volume: 100,
+        loop: false,
+        createdAt: Date.now()
+      });
+      dom.sfxTitle.value = "";
+      dom.sfxUrl.value = "";
+      saveState();
+      renderSfx();
+      toast("Efeito adicionado.");
+    });
+
+    dom.sfxList.addEventListener("click", async (event) => {
+      const button = event.target.closest("button[data-action]");
+      if (!button) return;
+      const effect = findSfx(button.dataset.id);
+      if (!effect) return;
+
+      if (button.dataset.action === "play-sfx") {
+        await toggleSfx(effect.id);
+      }
+
+      if (button.dataset.action === "reset-sfx") {
+        effect.time = 0;
+        seekSfx(effect.id, 0);
+        saveState();
+        syncSfxViews();
+      }
+
+      if (button.dataset.action === "rename-sfx") {
+        const next = prompt("Título do efeito", effect.title);
+        if (next && next.trim()) {
+          effect.title = next.trim().slice(0, 72);
+          saveState();
+          renderSfx();
+        }
+      }
+
+      if (button.dataset.action === "delete-sfx") {
+        if (!confirm(`Remover "${effect.title}"?`)) return;
+        stopSfx(effect.id, false);
+        state.sfx = state.sfx.filter((item) => item.id !== effect.id);
+        saveState();
+        renderSfx();
+      }
+    });
+
+    dom.sfxList.addEventListener("input", (event) => {
+      const input = event.target;
+      const effect = findSfx(input.dataset.id);
+      if (!effect) return;
+
+      if (input.dataset.action === "seek-sfx") {
+        effect.time = Number(input.value);
+        seekSfx(effect.id, effect.time);
+        syncSfxViews();
+        queueSave();
+      }
+
+      if (input.dataset.action === "volume-sfx") {
+        effect.volume = Number(input.value);
+        setSfxVolume(effect.id);
+        syncVolumeViews(effect);
+        queueSave();
+      }
+    });
+
+    dom.sfxList.addEventListener("change", (event) => {
+      const input = event.target;
+      if (input.dataset.action !== "loop-sfx") return;
+      const effect = findSfx(input.dataset.id);
+      if (!effect) return;
+      effect.loop = input.checked;
+      const engine = sfxPlayers.get(effect.id);
+      if (engine?.audio) engine.audio.loop = effect.loop;
+      queueSave();
+    });
+
+    dom.sfxStopAll.addEventListener("click", () => {
+      stopAllSfx(false);
+      toast("Efeitos parados.");
+    });
+
+    dom.sfxDragHandle.addEventListener("pointerdown", startSfxDockDrag);
+    window.addEventListener("pointermove", moveSfxDock);
+    window.addEventListener("pointerup", endSfxDockDrag);
+    window.addEventListener("pointercancel", endSfxDockDrag);
+    window.addEventListener("resize", () => applySfxDockPosition(true));
+
+    dom.masterVolume.addEventListener("input", () => {
+      state.masterVolume = Number(dom.masterVolume.value);
+      dom.volumeValue.textContent = `${state.masterVolume}%`;
+      const track = findTrack(current.trackId);
+      if (current.playing && track) setActiveVolume(getTrackOutputVolume(track));
+      queueSave();
+    });
+
+    dom.fadeDuration.addEventListener("input", () => {
+      state.fadeMs = Number(dom.fadeDuration.value);
+      dom.fadeValue.textContent = `${(state.fadeMs / 1000).toFixed(1)}s`;
+      queueSave();
+    });
+
+    dom.exportButton.addEventListener("click", () => {
+      dom.exportOutput.value = buildExportText();
+      toast("Texto gerado.");
+    });
+
+    dom.copyButton.addEventListener("click", async () => {
+      if (!dom.exportOutput.value.trim()) {
+        dom.exportOutput.value = buildExportText();
+      }
+      try {
+        await navigator.clipboard.writeText(dom.exportOutput.value);
+        toast("Texto copiado.");
+      } catch {
+        dom.exportOutput.select();
+        document.execCommand("copy");
+        toast("Texto selecionado para copiar.");
+      }
+    });
+
+    dom.downloadButton.addEventListener("click", () => {
+      if (!dom.exportOutput.value.trim()) {
+        dom.exportOutput.value = buildExportText();
+      }
+      const blob = new Blob([dom.exportOutput.value], { type: "text/plain;charset=utf-8" });
+      const link = document.createElement("a");
+      link.href = URL.createObjectURL(blob);
+      link.download = "mesa-sonora-playlists.txt";
+      link.click();
+      URL.revokeObjectURL(link.href);
+    });
+
+    dom.importButton.addEventListener("click", () => {
+      const result = importText(dom.importInput.value);
+      if (!result.count) {
+        toast("Nenhuma música encontrada no texto.");
+        return;
+      }
+      dom.importInput.value = "";
+      saveState();
+      render();
+      toast(`${result.count} música${result.count === 1 ? "" : "s"} importada${result.count === 1 ? "" : "s"}.`);
+    });
+
+    audio.addEventListener("ended", handleTrackEnded);
+    audio.addEventListener("loadedmetadata", () => {
+      if (current.type !== "audio") return;
+      const track = findTrack(current.trackId);
+      if (track && Number.isFinite(audio.duration)) {
+        track.duration = audio.duration;
+        queueSave();
+        syncTimeViews();
+      }
+    });
+
+    setInterval(() => {
+      if (current.playing) {
+        saveCurrentTime(false);
+        syncTimeViews();
+      }
+      if (sfxPlayers.size) {
+        saveSfxTimes(false);
+        syncSfxViews();
+      }
+    }, SAVE_INTERVAL_MS);
+
+    render();
+    renderYoutubeNotice();
+    applySfxDockPosition(true);
+
+    function loadState() {
+      try {
+        const parsed = JSON.parse(localStorage.getItem(STORAGE_KEY));
+        if (parsed && Array.isArray(parsed.playlists) && parsed.playlists.length) {
+          return normalizeState(parsed);
+        }
+      } catch {}
+      const id = uid();
+      return {
+        playlists: [{ id, name: "Cena da taverna inicio", tracks: [] }],
+        sfx: [],
+        sfxDock: null,
+        selectedPlaylistId: id,
+        masterVolume: 82,
+        fadeMs: 1800
+      };
+    }
+
+    function normalizeState(next) {
+      const playlists = next.playlists
+        .filter((playlist) => playlist && playlist.id && playlist.name)
+        .map((playlist) => ({
+          id: String(playlist.id),
+          name: String(playlist.name).slice(0, 72),
+          tracks: Array.isArray(playlist.tracks)
+            ? playlist.tracks.map((track) => {
+              const media = getMediaInfo(track.url || "");
+              return {
+                id: String(track.id || uid()),
+                title: String(track.title || guessTitle(track.url || "")).slice(0, 96),
+                url: String(track.url || ""),
+                type: track.type || media.type,
+                videoId: track.videoId || media.videoId || "",
+                time: Number(track.time || 0),
+                duration: Number(track.duration || 0),
+                volume: clamp(Number(track.volume ?? 100), 0, 100),
+                loop: Boolean(track.loop),
+                createdAt: Number(track.createdAt || Date.now())
+              };
+            }).filter((track) => track.url)
+            : []
+        }));
+      if (!playlists.length) {
+        const id = uid();
+        playlists.push({ id, name: "Cena da taverna inicio", tracks: [] });
+      }
+      return {
+        playlists,
+        sfx: normalizeTracks(next.sfx || [], 72),
+        sfxDock: normalizeDockPosition(next.sfxDock),
+        selectedPlaylistId: playlists.some((playlist) => playlist.id === next.selectedPlaylistId)
+          ? next.selectedPlaylistId
+          : playlists[0].id,
+        masterVolume: clamp(Number(next.masterVolume ?? 82), 0, 100),
+        fadeMs: clamp(Number(next.fadeMs ?? 1800), 0, 6000)
+      };
+    }
+
+    function normalizeTracks(tracks, titleLimit) {
+      if (!Array.isArray(tracks)) return [];
+      return tracks.map((track) => {
+        const media = getMediaInfo(track.url || "");
+        return {
+          id: String(track.id || uid()),
+          title: String(track.title || guessTitle(track.url || "")).slice(0, titleLimit),
+          url: String(track.url || ""),
+          type: track.type || media.type,
+          videoId: track.videoId || media.videoId || "",
+          time: Number(track.time || 0),
+          duration: Number(track.duration || 0),
+          volume: clamp(Number(track.volume ?? 100), 0, 100),
+          loop: Boolean(track.loop),
+          createdAt: Number(track.createdAt || Date.now())
+        };
+      }).filter((track) => track.url);
+    }
+
+    function normalizeDockPosition(position) {
+      if (!position || !Number.isFinite(Number(position.x)) || !Number.isFinite(Number(position.y))) {
+        return null;
+      }
+      return {
+        x: Math.max(0, Number(position.x)),
+        y: Math.max(0, Number(position.y))
+      };
+    }
+
+    function saveState() {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    }
+
+    function queueSave() {
+      clearTimeout(saveTimer);
+      saveTimer = setTimeout(saveState, 180);
+    }
+
+    function render() {
+      const selected = getSelectedPlaylist();
+      dom.activePlaylistTitle.textContent = selected.name;
+      dom.statPlaylists.textContent = `${state.playlists.length} playlist${state.playlists.length === 1 ? "" : "s"}`;
+      const totalTracks = state.playlists.reduce((sum, playlist) => sum + playlist.tracks.length, 0);
+      dom.statTracks.textContent = `${totalTracks} música${totalTracks === 1 ? "" : "s"} · ${state.sfx.length} efeito${state.sfx.length === 1 ? "" : "s"}`;
+
+      dom.playlistList.innerHTML = state.playlists.map((playlist) => `
+        <div class="playlist-item ${playlist.id === state.selectedPlaylistId ? "is-active" : ""}">
+          <button class="ghost" type="button" data-action="select-playlist" data-id="${escapeAttr(playlist.id)}" title="Selecionar playlist">
+            <span class="playlist-name">${escapeHtml(playlist.name)}</span>
+            <span class="playlist-count">${playlist.tracks.length} música${playlist.tracks.length === 1 ? "" : "s"}</span>
+          </button>
+          <div class="mini-actions">
+            <button class="icon-button" type="button" data-action="rename-playlist" data-id="${escapeAttr(playlist.id)}" title="Renomear playlist" aria-label="Renomear ${escapeAttr(playlist.name)}">
+              <i data-lucide="pencil"></i>
+            </button>
+            <button class="icon-button" type="button" data-action="delete-playlist" data-id="${escapeAttr(playlist.id)}" title="Excluir playlist" aria-label="Excluir ${escapeAttr(playlist.name)}">
+              <i data-lucide="trash-2"></i>
+            </button>
+          </div>
+        </div>
+      `).join("");
+
+      dom.playlistList.querySelectorAll(".playlist-item > .ghost").forEach((button) => {
+        button.style.display = "grid";
+        button.style.gap = "2px";
+        button.style.justifyItems = "start";
+        button.style.textAlign = "left";
+        button.style.border = "0";
+        button.style.padding = "0";
+        button.style.minHeight = "auto";
+      });
+
+      dom.trackPlaylist.innerHTML = state.playlists.map((playlist) => `
+        <option value="${escapeAttr(playlist.id)}" ${playlist.id === state.selectedPlaylistId ? "selected" : ""}>${escapeHtml(playlist.name)}</option>
+      `).join("");
+
+      if (!selected.tracks.length) {
+        dom.trackList.innerHTML = `<div class="empty-state">Nenhuma música nesta playlist.</div>`;
+      } else {
+        dom.trackList.innerHTML = selected.tracks.map((track) => trackTemplate(track)).join("");
+      }
+
+      dom.exportList.innerHTML = state.playlists.map((playlist) => `
+        <label class="check-row">
+          <input type="checkbox" class="export-check" value="${escapeAttr(playlist.id)}" ${playlist.id === state.selectedPlaylistId ? "checked" : ""}>
+          <span>${escapeHtml(playlist.name)}</span>
+        </label>
+      `).join("") + `
+        <label class="check-row">
+          <input type="checkbox" class="export-sfx-check" value="sfx">
+          <span>Efeitos sonoros</span>
+        </label>
+      `;
+
+      dom.masterVolume.value = state.masterVolume;
+      dom.fadeDuration.value = state.fadeMs;
+      dom.volumeValue.textContent = `${state.masterVolume}%`;
+      dom.fadeValue.textContent = `${(state.fadeMs / 1000).toFixed(1)}s`;
+      renderNowPlaying();
+      renderSfx();
+      renderYoutubeNotice();
+      refreshIcons();
+    }
+
+    function trackTemplate(track) {
+      const isCurrent = current.trackId === track.id;
+      const isPlaying = isCurrent && current.playing;
+      const pct = track.duration ? clamp((track.time / track.duration) * 100, 0, 100) : 0;
+      const sliderMax = getSliderMax(track);
+      return `
+        <article class="track-card ${isPlaying ? "is-playing" : ""}" data-track-id="${escapeAttr(track.id)}">
+          <button class="play-button" type="button" data-action="play-track" data-id="${escapeAttr(track.id)}" title="${isPlaying ? "Pausar" : "Tocar"}" aria-label="${isPlaying ? "Pausar" : "Tocar"} ${escapeAttr(track.title)}">
+            <i data-lucide="${isPlaying ? "pause" : "play"}"></i>
+          </button>
+          <div class="track-meta">
+            <p class="track-title">${escapeHtml(track.title)}</p>
+            <div class="track-url">${escapeHtml(track.url)}</div>
+          </div>
+          <div class="mini-actions">
+            <button class="icon-button" type="button" data-action="reset-time" data-id="${escapeAttr(track.id)}" title="Zerar tempo" aria-label="Zerar tempo de ${escapeAttr(track.title)}">
+              <i data-lucide="rotate-ccw"></i>
+            </button>
+            <button class="icon-button" type="button" data-action="rename-track" data-id="${escapeAttr(track.id)}" title="Renomear música" aria-label="Renomear ${escapeAttr(track.title)}">
+              <i data-lucide="pencil"></i>
+            </button>
+            <button class="icon-button" type="button" data-action="delete-track" data-id="${escapeAttr(track.id)}" title="Remover música" aria-label="Remover ${escapeAttr(track.title)}">
+              <i data-lucide="trash-2"></i>
+            </button>
+          </div>
+          <div class="track-controls">
+            <div class="control-cell">
+              <label for="seek-${escapeAttr(track.id)}">Linha do tempo</label>
+              <div class="range-row">
+                <input id="seek-${escapeAttr(track.id)}" type="range" min="0" max="${sliderMax}" step="1" value="${Math.min(track.time, sliderMax)}" data-action="seek-track" data-id="${escapeAttr(track.id)}">
+                <span class="range-value" data-track-time="${escapeAttr(track.id)}">${formatTime(track.time)}${track.duration ? ` / ${formatTime(track.duration)}` : ""}</span>
+              </div>
+              <div class="progress" aria-hidden="true"><span data-track-progress="${escapeAttr(track.id)}" style="width:${pct}%"></span></div>
+            </div>
+            <div class="control-cell">
+              <label for="volume-${escapeAttr(track.id)}">Volume</label>
+              <div class="range-row">
+                <input id="volume-${escapeAttr(track.id)}" type="range" min="0" max="100" step="1" value="${track.volume}" data-action="volume-track" data-id="${escapeAttr(track.id)}">
+                <span class="range-value" data-volume-value="${escapeAttr(track.id)}">${track.volume}%</span>
+              </div>
+            </div>
+            <label class="loop-pill">
+              <input type="checkbox" data-action="loop-track" data-id="${escapeAttr(track.id)}" ${track.loop ? "checked" : ""}>
+              Loop
+            </label>
+          </div>
+        </article>
+      `;
+    }
+
+    async function playTrack(trackId) {
+      const track = findTrack(trackId);
+      if (!track) return;
+
+      if (current.trackId === trackId && current.playing) {
+        await pauseActive(true);
+        return;
+      }
+
+      const token = ++switchToken;
+      await fadeOutCurrent(token);
+      if (token !== switchToken) return;
+
+      current = { trackId, type: track.type, playing: true };
+      renderNowPlaying();
+
+      try {
+        if (track.type === "youtube") {
+          await startYoutube(track);
+        } else {
+          await startAudio(track);
+        }
+        if (token !== switchToken) return;
+        await fadeTo(getTrackOutputVolume(track), state.fadeMs, token);
+        syncTimeViews();
+        render();
+      } catch (error) {
+        current = { trackId: null, type: null, playing: false };
+        renderNowPlaying();
+        toast(error.message || "Não foi possível tocar essa música.");
+      }
+    }
+
+    async function startAudio(track) {
+      stopYoutube();
+      dom.youtubeShell.classList.remove("is-visible");
+      dom.audioShell.classList.remove("is-hidden");
+      audio.src = track.url;
+      audio.currentTime = Math.max(0, Number(track.time || 0));
+      audio.volume = 0;
+      audio.loop = Boolean(track.loop);
+      await audio.play();
+    }
+
+    async function startYoutube(track) {
+      if (isFilePage) {
+        renderYoutubeNotice(youtubeLocalMessage);
+        throw new Error(youtubeLocalMessage);
+      }
+      audio.pause();
+      audio.removeAttribute("src");
+      dom.audioShell.classList.add("is-hidden");
+      dom.youtubeShell.classList.add("is-visible");
+      await ensureYoutubeReady();
+      patchYoutubeIframe(ytPlayer);
+      ytPlayer.setVolume(0);
+      ytPlayer.loadVideoById({ videoId: track.videoId, startSeconds: Math.max(0, Number(track.time || 0)) });
+      ytPlayer.playVideo();
+    }
+
+    async function pauseActive(withFade) {
+      if (!current.trackId) return;
+      const token = ++switchToken;
+      saveCurrentTime(true);
+      if (withFade) await fadeTo(0, Math.min(state.fadeMs, 1200), token);
+      pauseEngine();
+      current.playing = false;
+      saveState();
+      render();
+      toast("Pausado.");
+    }
+
+    async function fadeOutCurrent(token) {
+      if (!current.trackId) return;
+      saveCurrentTime(true);
+      if (current.playing) {
+        await fadeTo(0, Math.min(state.fadeMs, 1200), token);
+      }
+      pauseEngine();
+      current = { trackId: null, type: null, playing: false };
+    }
+
+    function stopActive() {
+      if (!current.trackId) return;
+      const track = findTrack(current.trackId);
+      if (track) track.time = 0;
+      ++switchToken;
+      pauseEngine();
+      seekEngine(0);
+      current = { trackId: null, type: null, playing: false };
+      saveState();
+      render();
+      toast("Parado.");
+    }
+
+    function pauseEngine() {
+      if (current.type === "audio") audio.pause();
+      if (current.type === "youtube" && ytPlayer && ytReady) ytPlayer.pauseVideo();
+    }
+
+    function seekEngine(seconds) {
+      if (current.type === "audio") {
+        try { audio.currentTime = seconds; } catch {}
+      }
+      if (current.type === "youtube" && ytPlayer && ytReady) {
+        ytPlayer.seekTo(seconds, true);
+      }
+    }
+
+    function seekActive(seconds) {
+      const track = findTrack(current.trackId);
+      if (!track) return;
+      track.time = seconds;
+      seekEngine(seconds);
+      syncTimeViews();
+    }
+
+    function stopYoutube() {
+      if (ytPlayer && ytReady) {
+        try {
+          ytPlayer.pauseVideo();
+          ytPlayer.seekTo(0, true);
+        } catch {}
+      }
+    }
+
+    function handleTrackEnded() {
+      const track = findTrack(current.trackId);
+      if (track?.loop) {
+        track.time = 0;
+        seekEngine(0);
+        if (current.type === "youtube" && ytPlayer && ytReady) ytPlayer.playVideo();
+        return;
+      }
+      if (track) track.time = 0;
+      current.playing = false;
+      saveState();
+      render();
+    }
+
+    function saveCurrentTime(force) {
+      const track = findTrack(current.trackId);
+      if (!track) return;
+      const seconds = getActiveTime();
+      if (Number.isFinite(seconds)) {
+        track.time = Math.max(0, seconds);
+      }
+      const duration = getActiveDuration();
+      if (Number.isFinite(duration) && duration > 0) {
+        track.duration = duration;
+      }
+      if (force) saveState();
+      else queueSave();
+    }
+
+    function getActiveTime() {
+      if (current.type === "audio") return audio.currentTime || 0;
+      if (current.type === "youtube" && ytPlayer && ytReady && typeof ytPlayer.getCurrentTime === "function") {
+        return ytPlayer.getCurrentTime() || 0;
+      }
+      return 0;
+    }
+
+    function getActiveDuration() {
+      if (current.type === "audio") return audio.duration || 0;
+      if (current.type === "youtube" && ytPlayer && ytReady && typeof ytPlayer.getDuration === "function") {
+        return ytPlayer.getDuration() || 0;
+      }
+      return 0;
+    }
+
+    async function fadeTo(target, duration, token) {
+      const start = getActiveVolume();
+      const end = clamp(target, 0, 1);
+      if (!duration || Math.abs(start - end) < 0.01) {
+        setActiveVolume(end);
+        return;
+      }
+      const started = performance.now();
+      await new Promise((resolve) => {
+        function frame(now) {
+          if (token !== switchToken) {
+            resolve();
+            return;
+          }
+          const pct = clamp((now - started) / duration, 0, 1);
+          const eased = pct < 0.5 ? 2 * pct * pct : 1 - Math.pow(-2 * pct + 2, 2) / 2;
+          setActiveVolume(start + (end - start) * eased);
+          if (pct < 1) requestAnimationFrame(frame);
+          else resolve();
+        }
+        requestAnimationFrame(frame);
+      });
+    }
+
+    function setActiveVolume(value) {
+      const safe = clamp(value, 0, 1);
+      if (current.type === "audio") audio.volume = safe;
+      if (current.type === "youtube" && ytPlayer && ytReady) ytPlayer.setVolume(Math.round(safe * 100));
+    }
+
+    function getActiveVolume() {
+      if (current.type === "audio") return audio.volume || 0;
+      if (current.type === "youtube" && ytPlayer && ytReady && typeof ytPlayer.getVolume === "function") {
+        return (ytPlayer.getVolume() || 0) / 100;
+      }
+      return 0;
+    }
+
+    function getTrackOutputVolume(track) {
+      return clamp((state.masterVolume / 100) * ((track?.volume ?? 100) / 100), 0, 1);
+    }
+
+    function getYoutubePlayerVars(extra = {}) {
+      const vars = {
+        playsinline: 1,
+        rel: 0,
+        enablejsapi: 1,
+        ...extra
+      };
+      if (window.location.origin && window.location.origin !== "null") {
+        vars.origin = window.location.origin;
+      }
+      return vars;
+    }
+
+    function patchYoutubeIframe(player) {
+      try {
+        const iframe = player?.getIframe?.();
+        if (!iframe) return;
+        iframe.referrerPolicy = "strict-origin-when-cross-origin";
+        iframe.allow = "autoplay; encrypted-media; picture-in-picture";
+        iframe.setAttribute("allowfullscreen", "");
+      } catch {}
+    }
+
+    function renderYoutubeNotice(message) {
+      if (!dom.youtubeNotice) return;
+      const text = message || (isFilePage ? youtubeLocalMessage : "");
+      dom.youtubeNotice.textContent = text;
+      dom.youtubeNotice.classList.toggle("hidden", !text);
+    }
+
+    function getYoutubeErrorMessage(code, title) {
+      if (code === 153) {
+        if (isFilePage) return youtubeLocalMessage;
+        return `O YouTube bloqueou "${title}" por falta de referer/origem no embed. No GitHub Pages normalmente funciona; se persistir, teste sem bloqueador de anúncios ou use um link .mp3 direto.`;
+      }
+      if (code === 101 || code === 150) return `O dono do vídeo não permite tocar "${title}" fora do YouTube.`;
+      if (code === 100) return `O vídeo "${title}" foi removido, está privado ou não existe.`;
+      if (code === 2) return `O link do YouTube em "${title}" parece inválido.`;
+      return `O YouTube não conseguiu tocar "${title}" (erro ${code}).`;
+    }
+
+    function handleYoutubeError(code, title) {
+      const message = getYoutubeErrorMessage(code, title);
+      renderYoutubeNotice(message);
+      toast(message);
+      if (current.type === "youtube") {
+        current.playing = false;
+        renderNowPlaying();
+      }
+    }
+
+    function ensureYoutubeReady() {
+      if (ytReady) return Promise.resolve();
+      return new Promise((resolve, reject) => {
+        ytWaiters.push(resolve);
+        setTimeout(() => {
+          if (!ytReady) reject(new Error("YouTube ainda não carregou. Tente de novo em alguns segundos."));
+        }, 9000);
+      });
+    }
+
+    function syncTimeViews() {
+      const track = findTrack(current.trackId);
+      if (!track) {
+        renderNowPlaying();
+        return;
+      }
+      const pct = track.duration ? clamp((track.time / track.duration) * 100, 0, 100) : 0;
+      document.querySelectorAll(`[data-track-time="${cssEscape(track.id)}"]`).forEach((node) => {
+        node.textContent = `${formatTime(track.time)}${track.duration ? ` / ${formatTime(track.duration)}` : ""}`;
+      });
+      document.querySelectorAll(`[data-track-progress="${cssEscape(track.id)}"]`).forEach((node) => {
+        node.style.width = `${pct}%`;
+      });
+      document.querySelectorAll(`[data-action="seek-track"][data-id="${cssEscape(track.id)}"]`).forEach((node) => {
+        const max = getSliderMax(track);
+        node.max = String(max);
+        node.value = String(Math.min(track.time, max));
+      });
+      renderNowPlaying();
+    }
+
+    function syncVolumeViews(track) {
+      if (!track) return;
+      document.querySelectorAll(`[data-volume-value="${cssEscape(track.id)}"]`).forEach((node) => {
+        node.textContent = `${track.volume}%`;
+      });
+    }
+
+    function getSliderMax(track) {
+      return Math.max(60, Math.ceil(track.duration || track.time || 0), 600);
+    }
+
+    function renderNowPlaying() {
+      const track = findTrack(current.trackId);
+      if (!track) {
+        dom.currentTitle.textContent = "Nada tocando";
+        dom.currentSubtitle.textContent = "Selecione uma música.";
+        dom.currentTime.textContent = "00:00";
+        dom.currentProgress.style.width = "0%";
+        dom.pauseButton.disabled = true;
+        dom.stopButton.disabled = true;
+        dom.youtubeShell.classList.remove("is-visible");
+        dom.audioShell.classList.remove("is-hidden");
+        return;
+      }
+      const playlist = findPlaylistByTrack(track.id);
+      const pct = track.duration ? clamp((track.time / track.duration) * 100, 0, 100) : 0;
+      dom.currentTitle.textContent = track.title;
+      dom.currentSubtitle.textContent = `${playlist ? playlist.name : "Playlist"} · ${track.type === "youtube" ? "YouTube" : "MP3/Audio"}`;
+      dom.currentTime.textContent = `${formatTime(track.time)}${track.duration ? ` / ${formatTime(track.duration)}` : ""}`;
+      dom.currentProgress.style.width = `${pct}%`;
+      dom.pauseButton.disabled = false;
+      dom.stopButton.disabled = false;
+      dom.youtubeShell.classList.toggle("is-visible", track.type === "youtube");
+      dom.audioShell.classList.toggle("is-hidden", track.type === "youtube");
+    }
+
+    function renderSfx() {
+      dom.sfxCount.textContent = `(${state.sfx.length})`;
+      if (!state.sfx.length) {
+        dom.sfxList.innerHTML = `<div class="empty-state">Sem efeitos ainda.</div>`;
+        applySfxDockPosition(true);
+        refreshIcons();
+        return;
+      }
+      dom.sfxList.innerHTML = state.sfx.map((effect) => sfxTemplate(effect)).join("");
+      applySfxDockPosition(true);
+      refreshIcons();
+    }
+
+    function sfxTemplate(effect) {
+      const isPlaying = Boolean(sfxPlayers.get(effect.id)?.playing);
+      const pct = effect.duration ? clamp((effect.time / effect.duration) * 100, 0, 100) : 0;
+      const sliderMax = getSliderMax(effect);
+      return `
+        <article class="sfx-card ${isPlaying ? "is-playing" : ""}" data-sfx-id="${escapeAttr(effect.id)}">
+          <button class="sfx-play" type="button" data-action="play-sfx" data-id="${escapeAttr(effect.id)}" title="${isPlaying ? "Pausar efeito" : "Tocar efeito"}" aria-label="${isPlaying ? "Pausar" : "Tocar"} ${escapeAttr(effect.title)}">
+            <i data-lucide="${isPlaying ? "pause" : "play"}"></i>
+          </button>
+          <div class="track-meta">
+            <p class="sfx-title">${escapeHtml(effect.title)}</p>
+            <div class="sfx-url">${escapeHtml(effect.url)}</div>
+          </div>
+          <div class="mini-actions">
+            <button class="icon-button" type="button" data-action="reset-sfx" data-id="${escapeAttr(effect.id)}" title="Zerar tempo" aria-label="Zerar tempo de ${escapeAttr(effect.title)}">
+              <i data-lucide="rotate-ccw"></i>
+            </button>
+            <button class="icon-button" type="button" data-action="rename-sfx" data-id="${escapeAttr(effect.id)}" title="Renomear efeito" aria-label="Renomear ${escapeAttr(effect.title)}">
+              <i data-lucide="pencil"></i>
+            </button>
+            <button class="icon-button" type="button" data-action="delete-sfx" data-id="${escapeAttr(effect.id)}" title="Remover efeito" aria-label="Remover ${escapeAttr(effect.title)}">
+              <i data-lucide="trash-2"></i>
+            </button>
+          </div>
+          <div class="sfx-controls">
+            <div class="control-cell">
+              <label for="seek-sfx-${escapeAttr(effect.id)}">Tempo</label>
+              <div class="range-row">
+                <input id="seek-sfx-${escapeAttr(effect.id)}" type="range" min="0" max="${sliderMax}" step="1" value="${Math.min(effect.time, sliderMax)}" data-action="seek-sfx" data-id="${escapeAttr(effect.id)}">
+                <span class="range-value" data-sfx-time="${escapeAttr(effect.id)}">${formatTime(effect.time)}${effect.duration ? ` / ${formatTime(effect.duration)}` : ""}</span>
+              </div>
+              <div class="progress" aria-hidden="true"><span data-sfx-progress="${escapeAttr(effect.id)}" style="width:${pct}%"></span></div>
+            </div>
+            <div class="control-cell">
+              <label for="volume-sfx-${escapeAttr(effect.id)}">Volume</label>
+              <div class="range-row">
+                <input id="volume-sfx-${escapeAttr(effect.id)}" type="range" min="0" max="100" step="1" value="${effect.volume}" data-action="volume-sfx" data-id="${escapeAttr(effect.id)}">
+                <span class="range-value" data-volume-value="${escapeAttr(effect.id)}">${effect.volume}%</span>
+              </div>
+            </div>
+            <label class="loop-pill">
+              <input type="checkbox" data-action="loop-sfx" data-id="${escapeAttr(effect.id)}" ${effect.loop ? "checked" : ""}>
+              Loop
+            </label>
+          </div>
+        </article>
+      `;
+    }
+
+    function startSfxDockDrag(event) {
+      if (event.button !== undefined && event.button !== 0) return;
+      if (event.target.closest("button, input, textarea, select, a")) return;
+      const rect = dom.sfxDock.getBoundingClientRect();
+      sfxDockDrag = {
+        offsetX: event.clientX - rect.left,
+        offsetY: event.clientY - rect.top,
+        width: rect.width,
+        height: rect.height
+      };
+      dom.sfxDock.classList.add("is-dragging");
+      dom.sfxDock.style.width = `${rect.width}px`;
+      dom.sfxDragHandle.setPointerCapture?.(event.pointerId);
+      event.preventDefault();
+    }
+
+    function moveSfxDock(event) {
+      if (!sfxDockDrag) return;
+      const position = clampDockPosition(
+        event.clientX - sfxDockDrag.offsetX,
+        event.clientY - sfxDockDrag.offsetY,
+        sfxDockDrag.width,
+        sfxDockDrag.height
+      );
+      setSfxDockPosition(position);
+      state.sfxDock = position;
+    }
+
+    function endSfxDockDrag(event) {
+      if (!sfxDockDrag) return;
+      dom.sfxDock.classList.remove("is-dragging");
+      try {
+        dom.sfxDragHandle.releasePointerCapture?.(event.pointerId);
+      } catch {}
+      dom.sfxDock.style.width = "";
+      sfxDockDrag = null;
+      saveState();
+    }
+
+    function applySfxDockPosition(shouldClamp) {
+      if (!state.sfxDock) return;
+      const rect = dom.sfxDock.getBoundingClientRect();
+      const position = shouldClamp
+        ? clampDockPosition(state.sfxDock.x, state.sfxDock.y, rect.width, rect.height)
+        : state.sfxDock;
+      setSfxDockPosition(position);
+      state.sfxDock = position;
+      queueSave();
+    }
+
+    function setSfxDockPosition(position) {
+      dom.sfxDock.style.left = `${position.x}px`;
+      dom.sfxDock.style.top = `${position.y}px`;
+      dom.sfxDock.style.right = "auto";
+      dom.sfxDock.style.bottom = "auto";
+    }
+
+    function clampDockPosition(x, y, width, height) {
+      const margin = 10;
+      const maxX = Math.max(margin, window.innerWidth - width - margin);
+      const maxY = Math.max(margin, window.innerHeight - Math.min(height, window.innerHeight - margin * 2) - margin);
+      return {
+        x: clamp(x, margin, maxX),
+        y: clamp(y, margin, maxY)
+      };
+    }
+
+    async function toggleSfx(effectId) {
+      const engine = sfxPlayers.get(effectId);
+      if (engine?.playing) {
+        pauseSfx(effectId);
+        return;
+      }
+      await playSfx(effectId);
+    }
+
+    async function playSfx(effectId) {
+      const effect = findSfx(effectId);
+      if (!effect) return;
+      try {
+        const engine = effect.type === "youtube"
+          ? await ensureSfxYoutubeEngine(effect)
+          : ensureSfxAudioEngine(effect);
+        if (engine.type === "audio") {
+          engine.audio.loop = Boolean(effect.loop);
+          engine.audio.volume = effect.volume / 100;
+          engine.audio.currentTime = Math.max(0, Number(effect.time || 0));
+          await engine.audio.play();
+        } else {
+          engine.player.setVolume(effect.volume);
+          engine.player.loadVideoById({ videoId: effect.videoId, startSeconds: Math.max(0, Number(effect.time || 0)) });
+          engine.player.playVideo();
+        }
+        engine.playing = true;
+        renderSfx();
+      } catch (error) {
+        toast(error.message || "Não foi possível tocar esse efeito.");
+      }
+    }
+
+    function ensureSfxAudioEngine(effect) {
+      const existing = sfxPlayers.get(effect.id);
+      if (existing?.audio) return existing;
+      const effectAudio = new Audio(effect.url);
+      effectAudio.preload = "auto";
+      const engine = { type: "audio", audio: effectAudio, playing: false };
+      effectAudio.addEventListener("loadedmetadata", () => {
+        if (Number.isFinite(effectAudio.duration)) {
+          effect.duration = effectAudio.duration;
+          queueSave();
+          syncSfxViews();
+        }
+      });
+      effectAudio.addEventListener("ended", () => {
+        if (effect.loop) return;
+        effect.time = 0;
+        stopSfx(effect.id, true);
+      });
+      sfxPlayers.set(effect.id, engine);
+      return engine;
+    }
+
+    async function ensureSfxYoutubeEngine(effect) {
+      if (isFilePage) {
+        renderYoutubeNotice(youtubeLocalMessage);
+        throw new Error(youtubeLocalMessage);
+      }
+      const existing = sfxPlayers.get(effect.id);
+      if (existing?.player) return existing;
+      await ensureYoutubeReady();
+      const host = document.createElement("div");
+      host.id = `sfx-yt-${effect.id}`;
+      dom.sfxYoutubePool.appendChild(host);
+      const engine = { type: "youtube", hostId: host.id, player: null, playing: false };
+      sfxPlayers.set(effect.id, engine);
+      await new Promise((resolve) => {
+        engine.player = new YT.Player(host.id, {
+          host: "https://www.youtube.com",
+          width: "1",
+          height: "1",
+          playerVars: getYoutubePlayerVars({
+            controls: 0,
+            disablekb: 1
+          }),
+          events: {
+            onReady: (event) => {
+              patchYoutubeIframe(event.target);
+              resolve();
+            },
+            onStateChange: (event) => {
+              if (event.data !== YT.PlayerState.ENDED) return;
+              const latest = findSfx(effect.id);
+              if (latest?.loop) {
+                latest.time = 0;
+                engine.player.seekTo(0, true);
+                engine.player.playVideo();
+              } else {
+                if (latest) latest.time = 0;
+                stopSfx(effect.id, true);
+              }
+            },
+            onError: (event) => handleYoutubeError(event.data, effect.title)
+          }
+        });
+      });
+      return engine;
+    }
+
+    function pauseSfx(effectId) {
+      const effect = findSfx(effectId);
+      const engine = sfxPlayers.get(effectId);
+      if (!effect || !engine) return;
+      effect.time = getSfxTime(effectId);
+      if (engine.audio) engine.audio.pause();
+      if (engine.player) engine.player.pauseVideo();
+      engine.playing = false;
+      saveState();
+      renderSfx();
+    }
+
+    function stopSfx(effectId, resetTime) {
+      const effect = findSfx(effectId);
+      const engine = sfxPlayers.get(effectId);
+      if (effect) {
+        effect.time = resetTime ? 0 : getSfxTime(effectId);
+      }
+      if (engine?.audio) {
+        engine.audio.pause();
+        engine.audio.removeAttribute("src");
+      }
+      if (engine?.player) {
+        try {
+          engine.player.stopVideo();
+          engine.player.destroy();
+        } catch {}
+      }
+      if (engine?.hostId) {
+        document.getElementById(engine.hostId)?.remove();
+      }
+      sfxPlayers.delete(effectId);
+      saveState();
+      renderSfx();
+    }
+
+    function stopAllSfx(resetTime) {
+      Array.from(sfxPlayers.keys()).forEach((id) => stopSfx(id, resetTime));
+    }
+
+    function seekSfx(effectId, seconds) {
+      const engine = sfxPlayers.get(effectId);
+      if (engine?.audio) {
+        try { engine.audio.currentTime = seconds; } catch {}
+      }
+      if (engine?.player) {
+        engine.player.seekTo(seconds, true);
+      }
+    }
+
+    function setSfxVolume(effectId) {
+      const effect = findSfx(effectId);
+      const engine = sfxPlayers.get(effectId);
+      if (!effect || !engine) return;
+      if (engine.audio) engine.audio.volume = effect.volume / 100;
+      if (engine.player) engine.player.setVolume(effect.volume);
+    }
+
+    function saveSfxTimes(force) {
+      for (const [id, engine] of sfxPlayers) {
+        if (!engine.playing) continue;
+        const effect = findSfx(id);
+        if (!effect) continue;
+        const seconds = getSfxTime(id);
+        if (Number.isFinite(seconds)) effect.time = Math.max(0, seconds);
+        const duration = getSfxDuration(id);
+        if (Number.isFinite(duration) && duration > 0) effect.duration = duration;
+      }
+      if (force) saveState();
+      else queueSave();
+    }
+
+    function syncSfxViews() {
+      for (const effect of state.sfx) {
+        const pct = effect.duration ? clamp((effect.time / effect.duration) * 100, 0, 100) : 0;
+        document.querySelectorAll(`[data-sfx-time="${cssEscape(effect.id)}"]`).forEach((node) => {
+          node.textContent = `${formatTime(effect.time)}${effect.duration ? ` / ${formatTime(effect.duration)}` : ""}`;
+        });
+        document.querySelectorAll(`[data-sfx-progress="${cssEscape(effect.id)}"]`).forEach((node) => {
+          node.style.width = `${pct}%`;
+        });
+        document.querySelectorAll(`[data-action="seek-sfx"][data-id="${cssEscape(effect.id)}"]`).forEach((node) => {
+          const max = getSliderMax(effect);
+          node.max = String(max);
+          node.value = String(Math.min(effect.time, max));
+        });
+      }
+    }
+
+    function getSfxTime(effectId) {
+      const engine = sfxPlayers.get(effectId);
+      if (engine?.audio) return engine.audio.currentTime || 0;
+      if (engine?.player && typeof engine.player.getCurrentTime === "function") return engine.player.getCurrentTime() || 0;
+      return findSfx(effectId)?.time || 0;
+    }
+
+    function getSfxDuration(effectId) {
+      const engine = sfxPlayers.get(effectId);
+      if (engine?.audio) return engine.audio.duration || 0;
+      if (engine?.player && typeof engine.player.getDuration === "function") return engine.player.getDuration() || 0;
+      return findSfx(effectId)?.duration || 0;
+    }
+
+    function buildExportText() {
+      const selectedIds = Array.from(document.querySelectorAll(".export-check:checked")).map((input) => input.value);
+      const includeSfx = Boolean(document.querySelector(".export-sfx-check:checked"));
+      const ids = selectedIds.length || includeSfx ? selectedIds : [state.selectedPlaylistId];
+      const lines = [];
+      for (const playlist of state.playlists) {
+        if (!ids.includes(playlist.id)) continue;
+        for (const track of playlist.tracks) {
+          lines.push(`{titulo=${quoteValue(track.title)}, link=${quoteValue(track.url)}, playlist=${quoteValue(playlist.name)}, volume=${track.volume}, loop=${track.loop ? "sim" : "nao"}}`);
+        }
+      }
+      if (includeSfx) {
+        for (const effect of state.sfx) {
+          lines.push(`{titulo=${quoteValue(effect.title)}, link=${quoteValue(effect.url)}, playlist="Efeitos sonoros", tipo="efeito", volume=${effect.volume}, loop=${effect.loop ? "sim" : "nao"}}`);
+        }
+      }
+      return lines.join("\n");
+    }
+
+    function importText(text) {
+      const lines = text.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+      let count = 0;
+      for (const line of lines) {
+        const record = parseRecord(line);
+        const title = record.titulo || record.title || "";
+        const url = record.link || record.url || "";
+        const playlistName = record.playlist || record.plalist || record.lista || getSelectedPlaylist().name;
+        const isEffect = ["efeito", "sfx", "effect"].includes(String(record.tipo || record.type || "").toLowerCase())
+          || String(playlistName).toLowerCase() === "efeitos sonoros";
+        if (!url) continue;
+        const media = getMediaInfo(url);
+        if (media.type === "youtube" && !media.videoId) continue;
+        const imported = {
+          id: uid(),
+          title: (title || guessTitle(url)).slice(0, isEffect ? 72 : 96),
+          url,
+          type: media.type,
+          videoId: media.videoId || "",
+          time: 0,
+          duration: 0,
+          volume: clamp(Number(record.volume ?? 100), 0, 100),
+          loop: parseBool(record.loop),
+          createdAt: Date.now()
+        };
+        if (isEffect) {
+          state.sfx.push(imported);
+          count += 1;
+          continue;
+        }
+        let playlist = state.playlists.find((item) => item.name.toLowerCase() === playlistName.toLowerCase());
+        if (!playlist) {
+          playlist = { id: uid(), name: playlistName.slice(0, 72), tracks: [] };
+          state.playlists.push(playlist);
+        }
+        playlist.tracks.push(imported);
+        state.selectedPlaylistId = playlist.id;
+        count += 1;
+      }
+      return { count };
+    }
+
+    function parseRecord(line) {
+      const record = {};
+      const body = line.replace(/^\{/, "").replace(/\}$/, "");
+      const pattern = /([a-zA-Z_]+)\s*=\s*(?:"((?:\\"|[^"])*)"|'((?:\\'|[^'])*)'|([^,}]+))/g;
+      let match;
+      while ((match = pattern.exec(body))) {
+        const key = match[1].trim().toLowerCase();
+        const value = (match[2] ?? match[3] ?? match[4] ?? "").trim().replace(/\\"/g, '"').replace(/\\'/g, "'");
+        record[key] = value;
+      }
+      return record;
+    }
+
+    function parseBool(value) {
+      return ["sim", "true", "1", "yes", "loop"].includes(String(value || "").trim().toLowerCase());
+    }
+
+    function getSelectedPlaylist() {
+      return getPlaylist(state.selectedPlaylistId) || state.playlists[0];
+    }
+
+    function getPlaylist(id) {
+      return state.playlists.find((playlist) => playlist.id === id);
+    }
+
+    function findTrack(id) {
+      for (const playlist of state.playlists) {
+        const track = playlist.tracks.find((item) => item.id === id);
+        if (track) return track;
+      }
+      return null;
+    }
+
+    function findPlaylistByTrack(trackId) {
+      return state.playlists.find((playlist) => playlist.tracks.some((track) => track.id === trackId));
+    }
+
+    function findSfx(id) {
+      return state.sfx.find((effect) => effect.id === id);
+    }
+
+    function getMediaInfo(url) {
+      const videoId = parseYoutubeId(url);
+      if (videoId) return { type: "youtube", videoId };
+      if (/youtu\.?be|youtube\.com/i.test(url)) return { type: "youtube", videoId: "" };
+      return { type: "audio", videoId: "" };
+    }
+
+    function parseYoutubeId(value) {
+      const raw = value.trim();
+      const direct = raw.match(/^[a-zA-Z0-9_-]{11}$/);
+      if (direct) return raw;
+      try {
+        const url = new URL(raw.startsWith("http") ? raw : `https://${raw}`);
+        if (url.hostname.includes("youtu.be")) return url.pathname.replace("/", "").slice(0, 11);
+        if (url.searchParams.get("v")) return url.searchParams.get("v").slice(0, 11);
+        const parts = url.pathname.split("/").filter(Boolean);
+        const marker = parts.findIndex((part) => ["embed", "shorts", "live"].includes(part));
+        if (marker >= 0 && parts[marker + 1]) return parts[marker + 1].slice(0, 11);
+      } catch {}
+      return "";
+    }
+
+    function guessTitle(url) {
+      try {
+        const parsed = new URL(url.startsWith("http") ? url : `https://${url}`);
+        const last = decodeURIComponent(parsed.pathname.split("/").filter(Boolean).pop() || parsed.hostname);
+        return last.replace(/\.(mp3|wav|ogg|m4a|aac)$/i, "").replace(/[-_]+/g, " ").slice(0, 96) || "Música sem título";
+      } catch {
+        return "Música sem título";
+      }
+    }
+
+    function quoteValue(value) {
+      return `"${String(value).replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`;
+    }
+
+    function formatTime(value) {
+      const total = Math.max(0, Math.floor(Number(value) || 0));
+      const hours = Math.floor(total / 3600);
+      const minutes = Math.floor((total % 3600) / 60);
+      const seconds = total % 60;
+      if (hours) {
+        return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
+      }
+      return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
+    }
+
+    function uid() {
+      if (crypto && crypto.randomUUID) return crypto.randomUUID();
+      return Math.random().toString(36).slice(2) + Date.now().toString(36);
+    }
+
+    function clamp(value, min, max) {
+      return Math.min(max, Math.max(min, value));
+    }
+
+    function escapeHtml(value) {
+      return String(value)
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#039;");
+    }
+
+    function escapeAttr(value) {
+      return escapeHtml(value);
+    }
+
+    function cssEscape(value) {
+      if (window.CSS && CSS.escape) return CSS.escape(value);
+      return String(value).replace(/["\\]/g, "\\$&");
+    }
+
+    function toast(message) {
+      dom.toast.textContent = message;
+      dom.toast.classList.add("is-visible");
+      clearTimeout(toastTimer);
+      toastTimer = setTimeout(() => dom.toast.classList.remove("is-visible"), 2400);
+    }
+
+    function refreshIcons() {
+      if (window.lucide) lucide.createIcons();
+    }
+  </script>
+</body>
+</html>
