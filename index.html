@@ -239,6 +239,18 @@
       word-break: break-word;
     }
 
+    .playlist-name,
+    .track-title,
+    .sfx-title {
+      cursor: text;
+    }
+
+    .playlist-name[data-editing="1"],
+    .track-title[data-editing="1"],
+    .sfx-title[data-editing="1"] {
+      cursor: text;
+    }
+
     .playlist-name {
       font-weight: 800;
     }
@@ -937,8 +949,8 @@
         <div class="time-text" id="current-time">00:00</div>
         <div class="button-row">
           <button class="text-button" id="pause-button" type="button">
-            <i data-lucide="pause"></i>
-            Pausar
+            <i data-lucide="pause" id="pause-button-icon"></i>
+            <span id="pause-button-label">Pausar</span>
           </button>
           <button class="text-button danger" id="stop-button" type="button">
             <i data-lucide="square"></i>
@@ -1059,6 +1071,15 @@
 
     const audio = new Audio();
     audio.preload = "auto";
+    audio.playsInline = true;
+    audio.setAttribute("playsinline", "");
+
+    // Mantém o áudio rodando em segundo plano evitando que o navegador descarte/pause.
+    audio.addEventListener("pause", () => {
+      if (current.type === "audio" && current.playing && !audio.ended) {
+        audio.play().catch(() => {});
+      }
+    });
     const isFilePage = window.location.protocol === "file:";
     const youtubeLocalMessage = "YouTube não toca quando o HTML é aberto direto como arquivo. Abra por GitHub Pages ou por http://localhost; links diretos .mp3 continuam funcionando.";
 
@@ -1075,7 +1096,7 @@
 
     window.onYouTubeIframeAPIReady = () => {
       ytPlayer = new YT.Player("youtube-player", {
-        host: "https://www.youtube.com",
+        host: "https://www.youtube-nocookie.com",
         width: "100%",
         height: "100%",
         playerVars: getYoutubePlayerVars({
@@ -1168,11 +1189,14 @@
       }
 
       if (action === "rename-playlist") {
-        const next = prompt("Nome da playlist", playlist.name);
-        if (next && next.trim()) {
-          playlist.name = next.trim().slice(0, 72);
-          saveState();
-          render();
+        const item = button.closest(".playlist-item");
+        const target = item?.querySelector(".playlist-name");
+        if (target) {
+          editInline(target, playlist.name, 72, (next) => {
+            playlist.name = next;
+            saveState();
+            render();
+          });
         }
       }
 
@@ -1207,11 +1231,14 @@
       }
 
       if (action === "rename-track") {
-        const next = prompt("Título da música", track.title);
-        if (next && next.trim()) {
-          track.title = next.trim().slice(0, 96);
-          saveState();
-          render();
+        const card = button.closest(".track-card");
+        const target = card?.querySelector(".track-title");
+        if (target) {
+          editInline(target, track.title, 96, (next) => {
+            track.title = next;
+            saveState();
+            render();
+          });
         }
       }
 
@@ -1274,7 +1301,7 @@
       queueSave();
     });
 
-    dom.pauseButton.addEventListener("click", () => pauseActive(true));
+    dom.pauseButton.addEventListener("click", () => togglePauseActive());
     dom.stopButton.addEventListener("click", () => stopActive());
 
     dom.sfxForm.addEventListener("submit", (event) => {
@@ -1323,11 +1350,14 @@
       }
 
       if (button.dataset.action === "rename-sfx") {
-        const next = prompt("Título do efeito", effect.title);
-        if (next && next.trim()) {
-          effect.title = next.trim().slice(0, 72);
-          saveState();
-          renderSfx();
+        const card = button.closest(".sfx-card");
+        const target = card?.querySelector(".sfx-title");
+        if (target) {
+          editInline(target, effect.title, 72, (next) => {
+            effect.title = next;
+            saveState();
+            renderSfx();
+          });
         }
       }
 
@@ -1450,7 +1480,7 @@
       }
     });
 
-    setInterval(() => {
+    const backgroundTicker = createBackgroundTicker(SAVE_INTERVAL_MS, () => {
       if (current.playing) {
         saveCurrentTime(false);
         syncTimeViews();
@@ -1459,7 +1489,82 @@
         saveSfxTimes(false);
         syncSfxViews();
       }
-    }, SAVE_INTERVAL_MS);
+    });
+    backgroundTicker.start();
+
+    function createBackgroundTicker(intervalMs, onTick) {
+      let worker = null;
+      let fallbackId = null;
+      try {
+        const workerSource = `
+          let timer = null;
+          self.onmessage = (event) => {
+            const data = event.data || {};
+            if (data.type === "start") {
+              if (timer) clearInterval(timer);
+              timer = setInterval(() => self.postMessage("tick"), data.interval || 1000);
+            } else if (data.type === "stop") {
+              if (timer) { clearInterval(timer); timer = null; }
+            }
+          };
+        `;
+        const blob = new Blob([workerSource], { type: "application/javascript" });
+        const url = URL.createObjectURL(blob);
+        worker = new Worker(url);
+        worker.onmessage = () => onTick();
+      } catch {
+        worker = null;
+      }
+      return {
+        start() {
+          if (worker) {
+            worker.postMessage({ type: "start", interval: intervalMs });
+          } else {
+            if (fallbackId) clearInterval(fallbackId);
+            fallbackId = setInterval(onTick, intervalMs);
+          }
+        },
+        stop() {
+          if (worker) worker.postMessage({ type: "stop" });
+          if (fallbackId) { clearInterval(fallbackId); fallbackId = null; }
+        }
+      };
+    }
+
+    document.addEventListener("visibilitychange", () => {
+      if (!document.hidden) {
+        if (current.playing) {
+          saveCurrentTime(false);
+          syncTimeViews();
+        }
+        if (sfxPlayers.size) {
+          saveSfxTimes(false);
+          syncSfxViews();
+        }
+      }
+    });
+
+    // Mantém a sessão de áudio ativa em segundo plano (evita throttling/eco mode).
+    let keepAliveCtx = null;
+    function ensureAudioKeepAlive() {
+      if (keepAliveCtx) {
+        if (keepAliveCtx.state === "suspended") keepAliveCtx.resume().catch(() => {});
+        return;
+      }
+      try {
+        const Ctx = window.AudioContext || window.webkitAudioContext;
+        if (!Ctx) return;
+        keepAliveCtx = new Ctx();
+        const oscillator = keepAliveCtx.createOscillator();
+        const gain = keepAliveCtx.createGain();
+        gain.gain.value = 0.0001;
+        oscillator.frequency.value = 1;
+        oscillator.connect(gain).connect(keepAliveCtx.destination);
+        oscillator.start();
+      } catch {}
+    }
+    document.addEventListener("click", ensureAudioKeepAlive, { once: true });
+    document.addEventListener("keydown", ensureAudioKeepAlive, { once: true });
 
     render();
     renderYoutubeNotice();
@@ -1571,7 +1676,7 @@
       dom.playlistList.innerHTML = state.playlists.map((playlist) => `
         <div class="playlist-item ${playlist.id === state.selectedPlaylistId ? "is-active" : ""}">
           <button class="ghost" type="button" data-action="select-playlist" data-id="${escapeAttr(playlist.id)}" title="Selecionar playlist">
-            <span class="playlist-name">${escapeHtml(playlist.name)}</span>
+            <span class="playlist-name" title="Clique duplo para renomear">${escapeHtml(playlist.name)}</span>
             <span class="playlist-count">${playlist.tracks.length} música${playlist.tracks.length === 1 ? "" : "s"}</span>
           </button>
           <div class="mini-actions">
@@ -1638,7 +1743,7 @@
             <i data-lucide="${isPlaying ? "pause" : "play"}"></i>
           </button>
           <div class="track-meta">
-            <p class="track-title">${escapeHtml(track.title)}</p>
+            <p class="track-title" title="Clique duplo para renomear">${escapeHtml(track.title)}</p>
             <div class="track-url">${escapeHtml(track.url)}</div>
           </div>
           <div class="mini-actions">
@@ -1747,6 +1852,38 @@
       saveState();
       render();
       toast("Pausado.");
+    }
+
+    async function togglePauseActive() {
+      if (!current.trackId) return;
+      if (current.playing) {
+        await pauseActive(true);
+      } else {
+        await resumeActive();
+      }
+    }
+
+    async function resumeActive() {
+      const track = findTrack(current.trackId);
+      if (!track) return;
+      const token = ++switchToken;
+      current.playing = true;
+      try {
+        if (current.type === "audio") {
+          audio.volume = 0;
+          await audio.play();
+        } else if (current.type === "youtube" && ytPlayer && ytReady) {
+          ytPlayer.setVolume(0);
+          ytPlayer.playVideo();
+        }
+        await fadeTo(getTrackOutputVolume(track), state.fadeMs, token);
+        render();
+        toast("Tocando.");
+      } catch (error) {
+        current.playing = false;
+        render();
+        toast(error.message || "Não foi possível retomar.");
+      }
     }
 
     async function fadeOutCurrent(token) {
@@ -1895,6 +2032,11 @@
         playsinline: 1,
         rel: 0,
         enablejsapi: 1,
+        modestbranding: 1,
+        iv_load_policy: 3,
+        fs: 0,
+        cc_load_policy: 0,
+        autoplay: 1,
         ...extra
       };
       if (window.location.origin && window.location.origin !== "null") {
@@ -1985,6 +2127,8 @@
 
     function renderNowPlaying() {
       const track = findTrack(current.trackId);
+      const pauseLabel = document.querySelector("#pause-button-label");
+      const pauseIcon = document.querySelector("#pause-button-icon");
       if (!track) {
         dom.currentTitle.textContent = "Nada tocando";
         dom.currentSubtitle.textContent = "Selecione uma música.";
@@ -1994,6 +2138,8 @@
         dom.stopButton.disabled = true;
         dom.youtubeShell.classList.remove("is-visible");
         dom.audioShell.classList.remove("is-hidden");
+        if (pauseLabel) pauseLabel.textContent = "Pausar";
+        if (pauseIcon) pauseIcon.setAttribute("data-lucide", "pause");
         return;
       }
       const playlist = findPlaylistByTrack(track.id);
@@ -2004,6 +2150,8 @@
       dom.currentProgress.style.width = `${pct}%`;
       dom.pauseButton.disabled = false;
       dom.stopButton.disabled = false;
+      if (pauseLabel) pauseLabel.textContent = current.playing ? "Pausar" : "Tocar";
+      if (pauseIcon) pauseIcon.setAttribute("data-lucide", current.playing ? "pause" : "play");
       dom.youtubeShell.classList.toggle("is-visible", track.type === "youtube");
       dom.audioShell.classList.toggle("is-hidden", track.type === "youtube");
     }
@@ -2031,7 +2179,7 @@
             <i data-lucide="${isPlaying ? "pause" : "play"}"></i>
           </button>
           <div class="track-meta">
-            <p class="sfx-title">${escapeHtml(effect.title)}</p>
+            <p class="sfx-title" title="Clique duplo para renomear">${escapeHtml(effect.title)}</p>
             <div class="sfx-url">${escapeHtml(effect.url)}</div>
           </div>
           <div class="mini-actions">
@@ -2207,7 +2355,7 @@
       sfxPlayers.set(effect.id, engine);
       await new Promise((resolve) => {
         engine.player = new YT.Player(host.id, {
-          host: "https://www.youtube.com",
+          host: "https://www.youtube-nocookie.com",
           width: "1",
           height: "1",
           playerVars: getYoutubePlayerVars({
@@ -2527,6 +2675,95 @@
     function refreshIcons() {
       if (window.lucide) lucide.createIcons();
     }
+
+    function editInline(element, currentValue, maxLength, onSave) {
+      if (!element || element.dataset.editing === "1") return;
+      element.dataset.editing = "1";
+      const original = element.innerHTML;
+      const input = document.createElement("input");
+      input.type = "text";
+      input.value = currentValue;
+      input.maxLength = maxLength;
+      input.style.minHeight = "28px";
+      input.style.padding = "4px 6px";
+      input.style.font = "inherit";
+      input.style.width = "100%";
+      input.style.boxSizing = "border-box";
+      element.innerHTML = "";
+      element.appendChild(input);
+      input.focus();
+      input.select();
+
+      let finished = false;
+      const finish = (commit) => {
+        if (finished) return;
+        finished = true;
+        const next = input.value.trim().slice(0, maxLength);
+        element.dataset.editing = "";
+        if (commit && next && next !== currentValue) {
+          onSave(next);
+        } else {
+          element.innerHTML = original;
+        }
+      };
+
+      input.addEventListener("keydown", (event) => {
+        if (event.key === "Enter") {
+          event.preventDefault();
+          finish(true);
+        } else if (event.key === "Escape") {
+          event.preventDefault();
+          finish(false);
+        }
+      });
+      input.addEventListener("blur", () => finish(true));
+      input.addEventListener("click", (event) => event.stopPropagation());
+    }
+
+    document.addEventListener("dblclick", (event) => {
+      const playlistName = event.target.closest(".playlist-name");
+      if (playlistName) {
+        const item = playlistName.closest(".playlist-item");
+        const button = item?.querySelector('button[data-action="select-playlist"]');
+        const playlist = getPlaylist(button?.dataset.id);
+        if (playlist) {
+          event.preventDefault();
+          editInline(playlistName, playlist.name, 72, (next) => {
+            playlist.name = next;
+            saveState();
+            render();
+          });
+        }
+        return;
+      }
+      const trackTitle = event.target.closest(".track-title");
+      if (trackTitle) {
+        const card = trackTitle.closest(".track-card");
+        const track = findTrack(card?.dataset.trackId);
+        if (track) {
+          event.preventDefault();
+          editInline(trackTitle, track.title, 96, (next) => {
+            track.title = next;
+            saveState();
+            render();
+          });
+        }
+        return;
+      }
+      const sfxTitle = event.target.closest(".sfx-title");
+      if (sfxTitle) {
+        const card = sfxTitle.closest(".sfx-card");
+        const effect = findSfx(card?.dataset.sfxId);
+        if (effect) {
+          event.preventDefault();
+          editInline(sfxTitle, effect.title, 72, (next) => {
+            effect.title = next;
+            saveState();
+            renderSfx();
+          });
+        }
+      }
+    });
   </script>
 </body>
 </html>
