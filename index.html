@@ -544,6 +544,76 @@
       overflow-wrap: anywhere;
     }
 
+    .youtube-status {
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: #f8faf9;
+      padding: 10px;
+      display: grid;
+      gap: 8px;
+    }
+
+    .youtube-status-main {
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+      min-width: 0;
+    }
+
+    .status-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      margin-top: 5px;
+      background: var(--muted);
+      flex: 0 0 auto;
+    }
+
+    .youtube-status[data-state="ready"] .status-dot {
+      background: var(--teal);
+    }
+
+    .youtube-status[data-state="loading"] .status-dot,
+    .youtube-status[data-state="warning"] .status-dot {
+      background: var(--gold);
+    }
+
+    .youtube-status[data-state="error"] .status-dot {
+      background: var(--red);
+    }
+
+    .youtube-status-title {
+      display: block;
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 850;
+      text-transform: uppercase;
+    }
+
+    .youtube-status-text {
+      display: block;
+      color: var(--ink);
+      font-size: 12px;
+      font-weight: 750;
+      overflow-wrap: anywhere;
+    }
+
+    .youtube-status-actions {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .youtube-status-actions .text-button,
+    .youtube-status-actions .icon-button {
+      min-height: 34px;
+      font-size: 12px;
+    }
+
+    a.text-button {
+      text-decoration: none;
+    }
+
     .meter {
       display: grid;
       gap: 8px;
@@ -565,11 +635,14 @@
     }
 
     .youtube-shell {
-      aspect-ratio: 16 / 9;
+      width: 220px;
+      max-width: 100%;
+      aspect-ratio: 1 / 1;
       background: #151718;
       border-radius: var(--radius);
       overflow: hidden;
       display: none;
+      justify-self: center;
     }
 
     .youtube-shell.is-visible {
@@ -593,6 +666,13 @@
       display: grid;
       place-items: center;
       color: var(--teal);
+    }
+
+    .audio-shell.is-youtube {
+      background:
+        repeating-linear-gradient(90deg, rgba(187, 135, 50, 0.16), rgba(187, 135, 50, 0.16) 4px, transparent 4px, transparent 12px),
+        linear-gradient(135deg, #ffffff, #f7f1e7);
+      color: var(--gold);
     }
 
     .audio-shell.is-hidden {
@@ -815,7 +895,7 @@
       flex: 0 0 auto;
     }
 
-    @media (max-width: 1180px) {
+    @media (max-width: 1340px) {
       .app {
         grid-template-columns: 256px minmax(0, 1fr);
       }
@@ -936,6 +1016,24 @@
     <aside class="right-panel">
       <section class="tool-panel current-box">
         <h3><i data-lucide="radio"></i> Tocando agora</h3>
+        <div class="youtube-status" id="youtube-status" data-state="idle">
+          <div class="youtube-status-main">
+            <span class="status-dot" aria-hidden="true"></span>
+            <div>
+              <span class="youtube-status-title">Sessão YouTube</span>
+              <span class="youtube-status-text" id="youtube-status-text">Login não verificável pelo site.</span>
+            </div>
+          </div>
+          <div class="youtube-status-actions">
+            <a class="text-button" id="youtube-login-link" href="https://www.youtube.com/account" target="_blank" rel="noopener">
+              <i data-lucide="external-link"></i>
+              Entrar
+            </a>
+            <button class="icon-button" id="youtube-status-refresh" type="button" title="Atualizar status" aria-label="Atualizar status do YouTube">
+              <i data-lucide="refresh-cw"></i>
+            </button>
+          </div>
+        </div>
         <div class="youtube-shell" id="youtube-shell">
           <div id="youtube-player"></div>
         </div>
@@ -1037,6 +1135,10 @@
       trackUrl: document.querySelector("#track-url"),
       trackPlaylist: document.querySelector("#track-playlist"),
       trackList: document.querySelector("#track-list"),
+      youtubeStatus: document.querySelector("#youtube-status"),
+      youtubeStatusText: document.querySelector("#youtube-status-text"),
+      youtubeLoginLink: document.querySelector("#youtube-login-link"),
+      youtubeStatusRefresh: document.querySelector("#youtube-status-refresh"),
       youtubeShell: document.querySelector("#youtube-shell"),
       youtubeNotice: document.querySelector("#youtube-notice"),
       audioShell: document.querySelector("#audio-shell"),
@@ -1081,6 +1183,7 @@
       }
     });
     const isFilePage = window.location.protocol === "file:";
+    const YOUTUBE_EMBED_HOST = "https://www.youtube.com";
     const youtubeLocalMessage = "YouTube não toca quando o HTML é aberto direto como arquivo. Abra por GitHub Pages ou por http://localhost; links diretos .mp3 continuam funcionando.";
 
     let state = loadState();
@@ -1088,26 +1191,33 @@
     let ytPlayer = null;
     let ytReady = false;
     let ytWaiters = [];
+    let ytApiRequested = false;
+    let ytApiFailed = false;
+    let youtubeLoginOpened = false;
     let switchToken = 0;
     let saveTimer = null;
     let toastTimer = null;
     let sfxDockDrag = null;
     const sfxPlayers = new Map();
 
-    window.onYouTubeIframeAPIReady = () => {
+    window.onYouTubeIframeAPIReady = () => createYoutubePlayer();
+
+    function createYoutubePlayer() {
+      if (ytPlayer || !window.YT?.Player) return;
       ytPlayer = new YT.Player("youtube-player", {
-        host: "https://www.youtube-nocookie.com",
+        host: YOUTUBE_EMBED_HOST,
         width: "100%",
         height: "100%",
         playerVars: getYoutubePlayerVars({
-          controls: 1,
-          disablekb: 0
+          controls: 0,
+          disablekb: 1
         }),
         events: {
           onReady: (event) => {
             ytReady = true;
             patchYoutubeIframe(event.target);
-            ytWaiters.splice(0).forEach((resolve) => resolve());
+            renderYoutubeSessionStatus();
+            settleYoutubeWaiters();
           },
           onStateChange: (event) => {
             if (event.data === YT.PlayerState.ENDED && current.type === "youtube") {
@@ -1124,11 +1234,7 @@
           onError: (event) => handleYoutubeError(event.data, findTrack(current.trackId)?.title || "YouTube")
         }
       });
-    };
-
-    const ytScript = document.createElement("script");
-    ytScript.src = "https://www.youtube.com/iframe_api";
-    document.head.appendChild(ytScript);
+    }
 
     dom.playlistForm.addEventListener("submit", (event) => {
       event.preventDefault();
@@ -1172,6 +1278,22 @@
       saveState();
       render();
       toast("Música adicionada.");
+    });
+
+    dom.youtubeStatusRefresh.addEventListener("click", () => {
+      renderYoutubeSessionStatus();
+      toast("Status do YouTube atualizado.");
+    });
+
+    dom.youtubeLoginLink.addEventListener("click", () => {
+      youtubeLoginOpened = true;
+      renderYoutubeSessionStatus("login-opened");
+    });
+
+    window.addEventListener("focus", () => {
+      if (!youtubeLoginOpened) return;
+      youtubeLoginOpened = false;
+      renderYoutubeSessionStatus("returned");
     });
 
     dom.playlistList.addEventListener("click", (event) => {
@@ -1568,6 +1690,7 @@
 
     render();
     renderYoutubeNotice();
+    renderYoutubeSessionStatus();
     applySfxDockPosition(true);
 
     function loadState() {
@@ -1729,6 +1852,7 @@
       renderNowPlaying();
       renderSfx();
       renderYoutubeNotice();
+      renderYoutubeSessionStatus();
       refreshIcons();
     }
 
@@ -1819,6 +1943,7 @@
       stopYoutube();
       dom.youtubeShell.classList.remove("is-visible");
       dom.audioShell.classList.remove("is-hidden");
+      dom.audioShell.classList.remove("is-youtube");
       audio.src = track.url;
       audio.currentTime = Math.max(0, Number(track.time || 0));
       audio.volume = 0;
@@ -1833,7 +1958,8 @@
       }
       audio.pause();
       audio.removeAttribute("src");
-      dom.audioShell.classList.add("is-hidden");
+      dom.audioShell.classList.remove("is-hidden");
+      dom.audioShell.classList.add("is-youtube");
       dom.youtubeShell.classList.add("is-visible");
       await ensureYoutubeReady();
       patchYoutubeIframe(ytPlayer);
@@ -2062,6 +2188,35 @@
       dom.youtubeNotice.classList.toggle("hidden", !text);
     }
 
+    function renderYoutubeSessionStatus(mode, customMessage) {
+      if (!dom.youtubeStatus || !dom.youtubeStatusText) return;
+      let state = "idle";
+      let text = "Login não verificável pelo site. Entre no YouTube neste navegador para o Premium valer no player.";
+
+      if (isFilePage) {
+        state = "warning";
+        text = "Abra por localhost ou GitHub Pages para o YouTube usar a sessão do navegador.";
+      } else if (mode === "error" || ytApiFailed) {
+        state = "error";
+        text = customMessage || "YouTube não carregou. Verifique a conexão ou bloqueadores.";
+      } else if (mode === "loading" || (ytApiRequested && !ytReady)) {
+        state = "loading";
+        text = "Carregando player do YouTube...";
+      } else if (mode === "login-opened") {
+        state = "loading";
+        text = "Entrando pelo YouTube. Volte para esta aba depois do login.";
+      } else if (mode === "returned") {
+        state = "ready";
+        text = "Se a conta Premium ficou logada neste navegador, o player usa essa sessão.";
+      } else if (ytReady) {
+        state = "ready";
+        text = "Player pronto em youtube.com. Premium depende da conta logada no navegador.";
+      }
+
+      dom.youtubeStatus.dataset.state = state;
+      dom.youtubeStatusText.textContent = text;
+    }
+
     function getYoutubeErrorMessage(code, title) {
       if (code === 153) {
         if (isFilePage) return youtubeLocalMessage;
@@ -2083,12 +2238,58 @@
       }
     }
 
+    function requestYoutubeApi() {
+      if (ytReady || ytApiRequested) {
+        if (window.YT?.Player && !ytPlayer) createYoutubePlayer();
+        return;
+      }
+      ytApiRequested = true;
+      ytApiFailed = false;
+      renderYoutubeSessionStatus("loading");
+
+      if (window.YT?.Player) {
+        createYoutubePlayer();
+        return;
+      }
+
+      const ytScript = document.createElement("script");
+      ytScript.src = "https://www.youtube.com/iframe_api";
+      ytScript.async = true;
+      ytScript.onerror = () => {
+        ytApiFailed = true;
+        ytApiRequested = false;
+        const error = new Error("YouTube não carregou. Verifique a conexão ou bloqueadores.");
+        renderYoutubeSessionStatus("error", error.message);
+        settleYoutubeWaiters(error);
+      };
+      document.head.appendChild(ytScript);
+    }
+
+    function settleYoutubeWaiters(error) {
+      const waiters = ytWaiters.splice(0);
+      waiters.forEach((waiter) => {
+        if (error) waiter.reject(error);
+        else waiter.resolve();
+      });
+    }
+
     function ensureYoutubeReady() {
       if (ytReady) return Promise.resolve();
+      if (ytApiFailed) {
+        ytApiFailed = false;
+        ytApiRequested = false;
+      }
+      requestYoutubeApi();
       return new Promise((resolve, reject) => {
-        ytWaiters.push(resolve);
+        const waiter = { resolve, reject };
+        ytWaiters.push(waiter);
         setTimeout(() => {
-          if (!ytReady) reject(new Error("YouTube ainda não carregou. Tente de novo em alguns segundos."));
+          const index = ytWaiters.indexOf(waiter);
+          if (index < 0 || ytReady) return;
+          ytWaiters.splice(index, 1);
+          const error = new Error("YouTube ainda não carregou. Tente de novo em alguns segundos.");
+          renderYoutubeSessionStatus("error", error.message);
+          reject(error);
         }, 9000);
       });
     }
@@ -2138,6 +2339,7 @@
         dom.stopButton.disabled = true;
         dom.youtubeShell.classList.remove("is-visible");
         dom.audioShell.classList.remove("is-hidden");
+        dom.audioShell.classList.remove("is-youtube");
         if (pauseLabel) pauseLabel.textContent = "Pausar";
         if (pauseIcon) pauseIcon.setAttribute("data-lucide", "pause");
         return;
@@ -2153,7 +2355,8 @@
       if (pauseLabel) pauseLabel.textContent = current.playing ? "Pausar" : "Tocar";
       if (pauseIcon) pauseIcon.setAttribute("data-lucide", current.playing ? "pause" : "play");
       dom.youtubeShell.classList.toggle("is-visible", track.type === "youtube");
-      dom.audioShell.classList.toggle("is-hidden", track.type === "youtube");
+      dom.audioShell.classList.remove("is-hidden");
+      dom.audioShell.classList.toggle("is-youtube", track.type === "youtube");
     }
 
     function renderSfx() {
@@ -2355,7 +2558,7 @@
       sfxPlayers.set(effect.id, engine);
       await new Promise((resolve) => {
         engine.player = new YT.Player(host.id, {
-          host: "https://www.youtube-nocookie.com",
+          host: YOUTUBE_EMBED_HOST,
           width: "1",
           height: "1",
           playerVars: getYoutubePlayerVars({
