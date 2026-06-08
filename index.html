@@ -314,6 +314,14 @@
       justify-content: flex-end;
     }
 
+    .top-actions {
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
     .stat {
       min-height: 38px;
       border-radius: var(--radius);
@@ -941,6 +949,10 @@
         justify-content: flex-start;
       }
 
+      .top-actions {
+        justify-content: flex-start;
+      }
+
       .track-card {
         gap: 10px;
       }
@@ -994,9 +1006,15 @@
           <p class="eyebrow">Playlist ativa</p>
           <h2 id="active-playlist-title">Mesa</h2>
         </div>
-        <div class="stats">
-          <div class="stat"><i data-lucide="list-music"></i><span id="stat-playlists">0 playlists</span></div>
-          <div class="stat"><i data-lucide="audio-lines"></i><span id="stat-tracks">0 músicas</span></div>
+        <div class="top-actions">
+          <div class="stats">
+            <div class="stat"><i data-lucide="list-music"></i><span id="stat-playlists">0 playlists</span></div>
+            <div class="stat"><i data-lucide="audio-lines"></i><span id="stat-tracks">0 músicas</span></div>
+          </div>
+          <button class="text-button danger" id="clear-tracks-button" type="button">
+            <i data-lucide="trash-2"></i>
+            Limpar faixas
+          </button>
         </div>
       </header>
 
@@ -1130,6 +1148,7 @@
       activePlaylistTitle: document.querySelector("#active-playlist-title"),
       statPlaylists: document.querySelector("#stat-playlists"),
       statTracks: document.querySelector("#stat-tracks"),
+      clearTracksButton: document.querySelector("#clear-tracks-button"),
       trackForm: document.querySelector("#track-form"),
       trackTitle: document.querySelector("#track-title"),
       trackUrl: document.querySelector("#track-url"),
@@ -1279,6 +1298,8 @@
       render();
       toast("Música adicionada.");
     });
+
+    dom.clearTracksButton.addEventListener("click", clearSelectedPlaylistTracks);
 
     dom.youtubeStatusRefresh.addEventListener("click", () => {
       renderYoutubeSessionStatus();
@@ -1795,6 +1816,7 @@
       dom.statPlaylists.textContent = `${state.playlists.length} playlist${state.playlists.length === 1 ? "" : "s"}`;
       const totalTracks = state.playlists.reduce((sum, playlist) => sum + playlist.tracks.length, 0);
       dom.statTracks.textContent = `${totalTracks} música${totalTracks === 1 ? "" : "s"} · ${state.sfx.length} efeito${state.sfx.length === 1 ? "" : "s"}`;
+      dom.clearTracksButton.disabled = !selected.tracks.length;
 
       dom.playlistList.innerHTML = state.playlists.map((playlist) => `
         <div class="playlist-item ${playlist.id === state.selectedPlaylistId ? "is-active" : ""}">
@@ -1854,6 +1876,29 @@
       renderYoutubeNotice();
       renderYoutubeSessionStatus();
       refreshIcons();
+    }
+
+    function clearSelectedPlaylistTracks() {
+      const playlist = getSelectedPlaylist();
+      const count = playlist?.tracks?.length || 0;
+      if (!playlist || !count) {
+        toast("Nenhuma faixa para limpar.");
+        return;
+      }
+      const label = count === 1 ? "1 faixa" : `${count} faixas`;
+      if (!confirm(`Remover ${label} de "${playlist.name}"?`)) return;
+
+      const ids = new Set(playlist.tracks.map((track) => track.id));
+      if (current.trackId && ids.has(current.trackId)) {
+        ++switchToken;
+        pauseEngine();
+        seekEngine(0);
+        current = { trackId: null, type: null, playing: false };
+      }
+      playlist.tracks = [];
+      saveState();
+      render();
+      toast(`${label} removida${count === 1 ? "" : "s"}.`);
     }
 
     function trackTemplate(track) {
