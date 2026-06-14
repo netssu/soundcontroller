@@ -211,6 +211,18 @@
       padding-right: 2px;
     }
 
+    .playlist-empty {
+      min-height: 58px;
+      border-radius: var(--radius);
+      border: 1px dashed rgba(255, 255, 255, 0.22);
+      display: grid;
+      place-items: center;
+      text-align: center;
+      color: #c5ccc7;
+      font-weight: 750;
+      padding: 12px;
+    }
+
     .playlist-item {
       min-height: 58px;
       border-radius: var(--radius);
@@ -1015,6 +1027,10 @@
             <i data-lucide="trash-2"></i>
             Limpar faixas
           </button>
+          <button class="text-button danger" id="reset-site-button" type="button">
+            <i data-lucide="eraser"></i>
+            Limpar tudo
+          </button>
         </div>
       </header>
 
@@ -1022,7 +1038,7 @@
         <input id="track-title" type="text" maxlength="96" placeholder="Título customizado" aria-label="Título customizado">
         <input id="track-url" type="url" placeholder="YouTube ou link .mp3" aria-label="Link do YouTube ou MP3" required>
         <select id="track-playlist" aria-label="Playlist da música"></select>
-        <button class="text-button primary" type="submit">
+        <button class="text-button primary" id="track-submit" type="submit">
           <i data-lucide="plus"></i>
           Adicionar
         </button>
@@ -1140,6 +1156,8 @@
   <script>
     const STORAGE_KEY = "mesa-sonora-rpg:v1";
     const SAVE_INTERVAL_MS = 1200;
+    const DEFAULT_MASTER_VOLUME = 82;
+    const DEFAULT_FADE_MS = 1800;
 
     const dom = {
       playlistForm: document.querySelector("#playlist-form"),
@@ -1149,10 +1167,12 @@
       statPlaylists: document.querySelector("#stat-playlists"),
       statTracks: document.querySelector("#stat-tracks"),
       clearTracksButton: document.querySelector("#clear-tracks-button"),
+      resetSiteButton: document.querySelector("#reset-site-button"),
       trackForm: document.querySelector("#track-form"),
       trackTitle: document.querySelector("#track-title"),
       trackUrl: document.querySelector("#track-url"),
       trackPlaylist: document.querySelector("#track-playlist"),
+      trackSubmit: document.querySelector("#track-submit"),
       trackList: document.querySelector("#track-list"),
       youtubeStatus: document.querySelector("#youtube-status"),
       youtubeStatusText: document.querySelector("#youtube-status-text"),
@@ -1273,6 +1293,10 @@
       const url = dom.trackUrl.value.trim();
       if (!url) return;
       const playlist = getPlaylist(dom.trackPlaylist.value) || getSelectedPlaylist();
+      if (!playlist) {
+        toast("Crie uma playlist antes de adicionar música.");
+        return;
+      }
       const media = getMediaInfo(url);
       if (media.type === "youtube" && !media.videoId) {
         toast("Link do YouTube inválido.");
@@ -1300,6 +1324,7 @@
     });
 
     dom.clearTracksButton.addEventListener("click", clearSelectedPlaylistTracks);
+    dom.resetSiteButton.addEventListener("click", resetSite);
 
     dom.youtubeStatusRefresh.addEventListener("click", () => {
       renderYoutubeSessionStatus();
@@ -1716,24 +1741,38 @@
 
     function loadState() {
       try {
-        const parsed = JSON.parse(localStorage.getItem(STORAGE_KEY));
-        if (parsed && Array.isArray(parsed.playlists) && parsed.playlists.length) {
+        const saved = localStorage.getItem(STORAGE_KEY);
+        if (!saved) return createStarterState();
+        const parsed = JSON.parse(saved);
+        if (parsed && Array.isArray(parsed.playlists)) {
           return normalizeState(parsed);
         }
       } catch {}
+      return createStarterState();
+    }
+
+    function createStarterState() {
       const id = uid();
       return {
+        ...createEmptyState(),
         playlists: [{ id, name: "Cena da taverna inicio", tracks: [] }],
+        selectedPlaylistId: id
+      };
+    }
+
+    function createEmptyState() {
+      return {
+        playlists: [],
         sfx: [],
         sfxDock: null,
-        selectedPlaylistId: id,
-        masterVolume: 82,
-        fadeMs: 1800
+        selectedPlaylistId: null,
+        masterVolume: DEFAULT_MASTER_VOLUME,
+        fadeMs: DEFAULT_FADE_MS
       };
     }
 
     function normalizeState(next) {
-      const playlists = next.playlists
+      const playlists = (Array.isArray(next.playlists) ? next.playlists : [])
         .filter((playlist) => playlist && playlist.id && playlist.name)
         .map((playlist) => ({
           id: String(playlist.id),
@@ -1756,19 +1795,15 @@
             }).filter((track) => track.url)
             : []
         }));
-      if (!playlists.length) {
-        const id = uid();
-        playlists.push({ id, name: "Cena da taverna inicio", tracks: [] });
-      }
       return {
         playlists,
         sfx: normalizeTracks(next.sfx || [], 72),
         sfxDock: normalizeDockPosition(next.sfxDock),
         selectedPlaylistId: playlists.some((playlist) => playlist.id === next.selectedPlaylistId)
           ? next.selectedPlaylistId
-          : playlists[0].id,
-        masterVolume: clamp(Number(next.masterVolume ?? 82), 0, 100),
-        fadeMs: clamp(Number(next.fadeMs ?? 1800), 0, 6000)
+          : (playlists[0]?.id || null),
+        masterVolume: clamp(Number(next.masterVolume ?? DEFAULT_MASTER_VOLUME), 0, 100),
+        fadeMs: clamp(Number(next.fadeMs ?? DEFAULT_FADE_MS), 0, 6000)
       };
     }
 
@@ -1812,13 +1847,19 @@
 
     function render() {
       const selected = getSelectedPlaylist();
-      dom.activePlaylistTitle.textContent = selected.name;
+      const hasPlaylist = Boolean(selected);
+      dom.activePlaylistTitle.textContent = selected?.name || "Nenhuma playlist";
       dom.statPlaylists.textContent = `${state.playlists.length} playlist${state.playlists.length === 1 ? "" : "s"}`;
       const totalTracks = state.playlists.reduce((sum, playlist) => sum + playlist.tracks.length, 0);
       dom.statTracks.textContent = `${totalTracks} música${totalTracks === 1 ? "" : "s"} · ${state.sfx.length} efeito${state.sfx.length === 1 ? "" : "s"}`;
-      dom.clearTracksButton.disabled = !selected.tracks.length;
+      dom.clearTracksButton.disabled = !selected?.tracks.length;
+      dom.resetSiteButton.disabled = !hasResettableContent();
+      dom.trackTitle.disabled = !hasPlaylist;
+      dom.trackUrl.disabled = !hasPlaylist;
+      dom.trackPlaylist.disabled = !hasPlaylist;
+      dom.trackSubmit.disabled = !hasPlaylist;
 
-      dom.playlistList.innerHTML = state.playlists.map((playlist) => `
+      dom.playlistList.innerHTML = state.playlists.length ? state.playlists.map((playlist) => `
         <div class="playlist-item ${playlist.id === state.selectedPlaylistId ? "is-active" : ""}">
           <button class="ghost" type="button" data-action="select-playlist" data-id="${escapeAttr(playlist.id)}" title="Selecionar playlist">
             <span class="playlist-name" title="Clique duplo para renomear">${escapeHtml(playlist.name)}</span>
@@ -1833,7 +1874,7 @@
             </button>
           </div>
         </div>
-      `).join("");
+      `).join("") : `<div class="playlist-empty">Nenhuma playlist.</div>`;
 
       dom.playlistList.querySelectorAll(".playlist-item > .ghost").forEach((button) => {
         button.style.display = "grid";
@@ -1845,11 +1886,13 @@
         button.style.minHeight = "auto";
       });
 
-      dom.trackPlaylist.innerHTML = state.playlists.map((playlist) => `
+      dom.trackPlaylist.innerHTML = state.playlists.length ? state.playlists.map((playlist) => `
         <option value="${escapeAttr(playlist.id)}" ${playlist.id === state.selectedPlaylistId ? "selected" : ""}>${escapeHtml(playlist.name)}</option>
-      `).join("");
+      `).join("") : `<option value="">Crie uma playlist</option>`;
 
-      if (!selected.tracks.length) {
+      if (!selected) {
+        dom.trackList.innerHTML = `<div class="empty-state">Crie uma playlist para adicionar músicas.</div>`;
+      } else if (!selected.tracks.length) {
         dom.trackList.innerHTML = `<div class="empty-state">Nenhuma música nesta playlist.</div>`;
       } else {
         dom.trackList.innerHTML = selected.tracks.map((track) => trackTemplate(track)).join("");
@@ -1899,6 +1942,60 @@
       saveState();
       render();
       toast(`${label} removida${count === 1 ? "" : "s"}.`);
+    }
+
+    function resetSite() {
+      if (!hasResettableContent()) {
+        toast("O site já está vazio.");
+        return;
+      }
+      if (!confirm("Apagar todas as playlists, músicas e efeitos sonoros e voltar o site ao zero?")) return;
+
+      ++switchToken;
+      pauseEngine();
+      seekEngine(0);
+      stopYoutube();
+      audio.pause();
+      audio.removeAttribute("src");
+      stopAllSfx(true);
+      dom.sfxYoutubePool.innerHTML = "";
+      current = { trackId: null, type: null, playing: false };
+      state = createEmptyState();
+      clearSfxDockPosition();
+      clearForms();
+      saveState();
+      render();
+      toast("Tudo limpo. Site zerado.");
+    }
+
+    function hasResettableContent() {
+      return state.playlists.length > 0
+        || state.sfx.length > 0
+        || Boolean(state.sfxDock)
+        || state.masterVolume !== DEFAULT_MASTER_VOLUME
+        || state.fadeMs !== DEFAULT_FADE_MS
+        || Boolean(current.trackId)
+        || sfxPlayers.size > 0;
+    }
+
+    function clearForms() {
+      dom.playlistName.value = "";
+      dom.trackTitle.value = "";
+      dom.trackUrl.value = "";
+      dom.sfxTitle.value = "";
+      dom.sfxUrl.value = "";
+      dom.importInput.value = "";
+      dom.exportOutput.value = "";
+    }
+
+    function clearSfxDockPosition() {
+      sfxDockDrag = null;
+      dom.sfxDock.classList.remove("is-dragging");
+      dom.sfxDock.style.left = "";
+      dom.sfxDock.style.top = "";
+      dom.sfxDock.style.right = "";
+      dom.sfxDock.style.bottom = "";
+      dom.sfxDock.style.width = "";
     }
 
     function trackTemplate(track) {
@@ -2763,7 +2860,8 @@
         const record = parseRecord(line);
         const title = record.titulo || record.title || "";
         const url = record.link || record.url || "";
-        const playlistName = record.playlist || record.plalist || record.lista || getSelectedPlaylist().name;
+        const selectedPlaylist = getSelectedPlaylist();
+        const playlistName = record.playlist || record.plalist || record.lista || selectedPlaylist?.name || "Importadas";
         const isEffect = ["efeito", "sfx", "effect"].includes(String(record.tipo || record.type || "").toLowerCase())
           || String(playlistName).toLowerCase() === "efeitos sonoros";
         if (!url) continue;
