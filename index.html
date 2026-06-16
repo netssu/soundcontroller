@@ -1210,17 +1210,7 @@
       toast: document.querySelector("#toast")
     };
 
-    const audio = new Audio();
-    audio.preload = "auto";
-    audio.playsInline = true;
-    audio.setAttribute("playsinline", "");
-
-    // Mantém o áudio rodando em segundo plano evitando que o navegador descarte/pause.
-    audio.addEventListener("pause", () => {
-      if (current.type === "audio" && current.playing && !audio.ended) {
-        audio.play().catch(() => {});
-      }
-    });
+    let audio = createMainAudio();
     const isFilePage = window.location.protocol === "file:";
     const YOUTUBE_EMBED_HOST = "https://www.youtube.com";
     const youtubeLocalMessage = "YouTube não toca quando o HTML é aberto direto como arquivo. Abra por GitHub Pages ou por http://localhost; links diretos .mp3 continuam funcionando.";
@@ -1637,17 +1627,6 @@
       toast(`${result.count} música${result.count === 1 ? "" : "s"} importada${result.count === 1 ? "" : "s"}.`);
     });
 
-    audio.addEventListener("ended", handleTrackEnded);
-    audio.addEventListener("loadedmetadata", () => {
-      if (current.type !== "audio") return;
-      const track = findTrack(current.trackId);
-      if (track && Number.isFinite(audio.duration)) {
-        track.duration = audio.duration;
-        queueSave();
-        syncTimeViews();
-      }
-    });
-
     const backgroundTicker = createBackgroundTicker(SAVE_INTERVAL_MS, () => {
       if (current.playing) {
         saveCurrentTime(false);
@@ -2058,8 +2037,18 @@
       }
 
       const token = ++switchToken;
-      await fadeOutCurrent(token);
-      if (token !== switchToken) return;
+      const shouldCrossfade = current.trackId
+        && current.playing
+        && !(current.type === "youtube" && track.type === "youtube");
+      const previousEngine = shouldCrossfade ? detachActiveEngineForCrossfade() : null;
+
+      if (!shouldCrossfade) {
+        await fadeOutCurrent(token);
+        if (token !== switchToken) {
+          stopCapturedEngine(previousEngine);
+          return;
+        }
+      }
 
       current = { trackId, type: track.type, playing: true };
       renderNowPlaying();
@@ -2070,11 +2059,21 @@
         } else {
           await startAudio(track);
         }
-        if (token !== switchToken) return;
-        await fadeTo(getTrackOutputVolume(track), state.fadeMs, token);
+        if (token !== switchToken) {
+          stopCapturedEngine(previousEngine, token);
+          return;
+        }
+        const fadeIn = fadeTo(getTrackOutputVolume(track), state.fadeMs, token);
+        const fadeOut = previousEngine
+          ? fadeEngineTo(previousEngine, 0, state.fadeMs, token).then(() => stopCapturedEngine(previousEngine, token))
+          : Promise.resolve();
+        await Promise.all([fadeIn, fadeOut]);
         syncTimeViews();
         render();
       } catch (error) {
+        stopCapturedEngine(previousEngine, token);
+        pauseEngine();
+        if (current.type === "audio") audio.removeAttribute("src");
         current = { trackId: null, type: null, playing: false };
         renderNowPlaying();
         toast(error.message || "Não foi possível tocar essa música.");
@@ -2082,7 +2081,6 @@
     }
 
     async function startAudio(track) {
-      stopYoutube();
       dom.youtubeShell.classList.remove("is-visible");
       dom.audioShell.classList.remove("is-hidden");
       dom.audioShell.classList.remove("is-youtube");
@@ -2108,6 +2106,31 @@
       ytPlayer.setVolume(0);
       ytPlayer.loadVideoById({ videoId: track.videoId, startSeconds: Math.max(0, Number(track.time || 0)) });
       ytPlayer.playVideo();
+    }
+
+    function detachActiveEngineForCrossfade() {
+      if (!current.trackId) return null;
+      saveCurrentTime(true);
+
+      if (current.type === "audio") {
+        const previousAudio = audio;
+        audio = createMainAudio();
+        return {
+          type: "audio",
+          node: previousAudio,
+          volume: previousAudio.volume || 0
+        };
+      }
+
+      if (current.type === "youtube" && ytPlayer && ytReady) {
+        return {
+          type: "youtube",
+          player: ytPlayer,
+          volume: getYoutubeVolume()
+        };
+      }
+
+      return null;
     }
 
     async function pauseActive(withFade) {
@@ -2253,6 +2276,34 @@
       return 0;
     }
 
+    function createMainAudio() {
+      const node = new Audio();
+      node.preload = "auto";
+      node.playsInline = true;
+      node.setAttribute("playsinline", "");
+
+      // Mantém o áudio rodando em segundo plano evitando que o navegador descarte/pause.
+      node.addEventListener("pause", () => {
+        if (node === audio && current.type === "audio" && current.playing && !node.ended) {
+          node.play().catch(() => {});
+        }
+      });
+      node.addEventListener("ended", () => {
+        if (node === audio) handleTrackEnded();
+      });
+      node.addEventListener("loadedmetadata", () => {
+        if (node !== audio || current.type !== "audio") return;
+        const track = findTrack(current.trackId);
+        if (track && Number.isFinite(node.duration)) {
+          track.duration = node.duration;
+          queueSave();
+          syncTimeViews();
+        }
+      });
+
+      return node;
+    }
+
     async function fadeTo(target, duration, token) {
       const start = getActiveVolume();
       const end = clamp(target, 0, 1);
@@ -2277,6 +2328,62 @@
       });
     }
 
+    async function fadeEngineTo(engine, target, duration, token) {
+      if (!engine) return;
+      const start = getCapturedEngineVolume(engine);
+      const end = clamp(target, 0, 1);
+      if (!duration || Math.abs(start - end) < 0.01) {
+        setCapturedEngineVolume(engine, end);
+        return;
+      }
+      const started = performance.now();
+      await new Promise((resolve) => {
+        function frame(now) {
+          if (token !== switchToken) {
+            resolve();
+            return;
+          }
+          const pct = clamp((now - started) / duration, 0, 1);
+          const eased = pct < 0.5 ? 2 * pct * pct : 1 - Math.pow(-2 * pct + 2, 2) / 2;
+          setCapturedEngineVolume(engine, start + (end - start) * eased);
+          if (pct < 1) requestAnimationFrame(frame);
+          else resolve();
+        }
+        requestAnimationFrame(frame);
+      });
+    }
+
+    function getCapturedEngineVolume(engine) {
+      if (engine?.type === "audio") return engine.node?.volume || 0;
+      if (engine?.type === "youtube") return getYoutubeVolume(engine.player);
+      return 0;
+    }
+
+    function setCapturedEngineVolume(engine, value) {
+      const safe = clamp(value, 0, 1);
+      if (engine?.type === "audio" && engine.node) {
+        engine.node.volume = safe;
+      }
+      if (engine?.type === "youtube" && engine.player && typeof engine.player.setVolume === "function") {
+        engine.player.setVolume(Math.round(safe * 100));
+      }
+    }
+
+    function stopCapturedEngine(engine, token) {
+      if (!engine) return;
+      if (engine.type === "audio" && engine.node) {
+        engine.node.pause();
+        engine.node.removeAttribute("src");
+      }
+      if (engine.type === "youtube" && engine.player) {
+        if (token !== undefined && token !== switchToken && current.type === "youtube") return;
+        try {
+          engine.player.pauseVideo();
+          engine.player.seekTo(0, true);
+        } catch {}
+      }
+    }
+
     function setActiveVolume(value) {
       const safe = clamp(value, 0, 1);
       if (current.type === "audio") audio.volume = safe;
@@ -2287,6 +2394,13 @@
       if (current.type === "audio") return audio.volume || 0;
       if (current.type === "youtube" && ytPlayer && ytReady && typeof ytPlayer.getVolume === "function") {
         return (ytPlayer.getVolume() || 0) / 100;
+      }
+      return 0;
+    }
+
+    function getYoutubeVolume(player = ytPlayer) {
+      if (player && typeof player.getVolume === "function") {
+        return (player.getVolume() || 0) / 100;
       }
       return 0;
     }
