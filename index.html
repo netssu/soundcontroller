@@ -799,6 +799,20 @@
       transition: none;
     }
 
+    .sfx-dock.is-minimized {
+      grid-template-rows: auto;
+      max-height: none;
+    }
+
+    .sfx-dock.is-minimized .sfx-header {
+      border-bottom: 0;
+    }
+
+    .sfx-dock.is-minimized .sfx-form,
+    .sfx-dock.is-minimized .sfx-list {
+      display: none;
+    }
+
     .sfx-header {
       min-height: 46px;
       padding: 10px 12px;
@@ -824,6 +838,12 @@
 
     .sfx-header .icon-button {
       cursor: pointer;
+    }
+
+    .sfx-header-actions {
+      display: flex;
+      align-items: center;
+      gap: 6px;
     }
 
     .sfx-form {
@@ -1135,9 +1155,14 @@
   <section class="sfx-dock" id="sfx-dock" aria-label="Efeitos sonoros">
     <div class="sfx-header" id="sfx-drag-handle" title="Segure e arraste para mover">
       <h3><i data-lucide="sparkles"></i> Efeitos sonoros <span id="sfx-count">0</span></h3>
-      <button class="icon-button danger" id="sfx-stop-all" type="button" title="Parar efeitos" aria-label="Parar todos os efeitos sonoros">
-        <i data-lucide="square"></i>
-      </button>
+      <div class="sfx-header-actions">
+        <button class="icon-button" id="sfx-minimize" type="button" title="Minimizar efeitos sonoros" aria-label="Minimizar efeitos sonoros" aria-controls="sfx-form sfx-list" aria-expanded="true">
+          <i data-lucide="chevron-down"></i>
+        </button>
+        <button class="icon-button danger" id="sfx-stop-all" type="button" title="Parar efeitos" aria-label="Parar todos os efeitos sonoros">
+          <i data-lucide="square"></i>
+        </button>
+      </div>
     </div>
     <form class="sfx-form" id="sfx-form">
       <input id="sfx-title" type="text" maxlength="72" placeholder="Título" aria-label="Título do efeito">
@@ -1205,6 +1230,7 @@
       sfxUrl: document.querySelector("#sfx-url"),
       sfxList: document.querySelector("#sfx-list"),
       sfxCount: document.querySelector("#sfx-count"),
+      sfxMinimize: document.querySelector("#sfx-minimize"),
       sfxStopAll: document.querySelector("#sfx-stop-all"),
       sfxYoutubePool: document.querySelector("#sfx-youtube-pool"),
       toast: document.querySelector("#toast")
@@ -1564,6 +1590,14 @@
       toast("Efeitos parados.");
     });
 
+    dom.sfxMinimize.addEventListener("click", () => {
+      state.sfxMinimized = !state.sfxMinimized;
+      renderSfxDockState();
+      applySfxDockPosition(true);
+      saveState();
+      refreshIcons();
+    });
+
     dom.sfxDragHandle.addEventListener("pointerdown", startSfxDockDrag);
     window.addEventListener("pointermove", moveSfxDock);
     window.addEventListener("pointerup", endSfxDockDrag);
@@ -1744,6 +1778,7 @@
         playlists: [],
         sfx: [],
         sfxDock: null,
+        sfxMinimized: false,
         selectedPlaylistId: null,
         masterVolume: DEFAULT_MASTER_VOLUME,
         fadeMs: DEFAULT_FADE_MS
@@ -1778,6 +1813,7 @@
         playlists,
         sfx: normalizeTracks(next.sfx || [], 72),
         sfxDock: normalizeDockPosition(next.sfxDock),
+        sfxMinimized: Boolean(next.sfxMinimized),
         selectedPlaylistId: playlists.some((playlist) => playlist.id === next.selectedPlaylistId)
           ? next.selectedPlaylistId
           : (playlists[0]?.id || null),
@@ -1951,6 +1987,7 @@
       return state.playlists.length > 0
         || state.sfx.length > 0
         || Boolean(state.sfxDock)
+        || state.sfxMinimized
         || state.masterVolume !== DEFAULT_MASTER_VOLUME
         || state.fadeMs !== DEFAULT_FADE_MS
         || Boolean(current.trackId)
@@ -2616,6 +2653,7 @@
     }
 
     function renderSfx() {
+      renderSfxDockState();
       dom.sfxCount.textContent = `(${state.sfx.length})`;
       if (!state.sfx.length) {
         dom.sfxList.innerHTML = `<div class="empty-state">Sem efeitos ainda.</div>`;
@@ -2626,6 +2664,18 @@
       dom.sfxList.innerHTML = state.sfx.map((effect) => sfxTemplate(effect)).join("");
       applySfxDockPosition(true);
       refreshIcons();
+    }
+
+    function renderSfxDockState() {
+      const minimized = Boolean(state.sfxMinimized);
+      const label = minimized ? "Expandir efeitos sonoros" : "Minimizar efeitos sonoros";
+      dom.sfxDock.classList.toggle("is-minimized", minimized);
+      dom.sfxForm.hidden = minimized;
+      dom.sfxList.hidden = minimized;
+      dom.sfxMinimize.title = label;
+      dom.sfxMinimize.setAttribute("aria-label", label);
+      dom.sfxMinimize.setAttribute("aria-expanded", String(!minimized));
+      dom.sfxMinimize.innerHTML = `<i data-lucide="${minimized ? "chevron-up" : "chevron-down"}"></i>`;
     }
 
     function sfxTemplate(effect) {
